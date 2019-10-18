@@ -12,7 +12,7 @@ from geometry_msgs.msg import PointStamped
 # y_axis_control_serial.go_to_pos_mmrad(100)
 # print(y_axis_control_serial.get_posmmrad())
 # print("done")
-
+tmp=True
 pos_desired=None
 
 def get_desired_pos(data):
