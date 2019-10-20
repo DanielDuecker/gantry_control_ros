@@ -51,16 +51,20 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   Gantry.msg
+   gantry.msg
 #   Message2.msg
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
+add_service_files(
+  FILES
+  init_home.srv
+  move_to_abs_pos.srv
+  move_with_vel.srv
+  stop_gantry.srv
+  move_to_relative_pos.srv
 #   Service2.srv
-# )
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(

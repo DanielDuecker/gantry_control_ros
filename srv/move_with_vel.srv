@@ -1,4 +1,5 @@
-int64 a
-int64 b
+float32 x_d
+float32 y_d
+float32 z_d
 ---
-int64 sum
+string message

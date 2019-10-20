@@ -1,4 +1,3 @@
-int64 a
-int64 b
+bool data
 ---
-int64 sum
+string message

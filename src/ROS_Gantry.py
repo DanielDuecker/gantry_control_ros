@@ -27,7 +27,7 @@ pos_desired_y_mm = None
 # Program State:
 stop_all = False
 initialize_home = False
-move_to_relative_pos = False
+move_to_rel_pos = False
 move_to_absolute_position = False
 move_with_velocity = False
 real_time_pos = False
@@ -75,7 +75,7 @@ def motor_control_publisher():
 
     rate = rospy.Rate(100)
     while not rospy.is_shutdown():
-        if not (stop_all or initialize_home or move_to_relative_pos or move_with_velocity):
+        if not (stop_all or initialize_home or move_to_rel_pos or move_with_velocity):
             # code for control:
             if pos_desired_x_mm is not None:
                 x_axis_control.go_to_pos_mmrad(pos_desired_x_mm)
@@ -100,8 +100,14 @@ def motor_control_publisher():
         rate.sleep()
 
 
-def get_desired_pos():
-    pass
+def get_desired_pos(data):
+    global pos_desired_x_mm , pos_desired_y_mm
+
+    # data = PointStamped()
+    pos_desired_x_mm = data.point.x
+    pos_desired_y_mm = data.point.y
+    #print(pos_desired)
+    return
 
 
 if __name__ == '__main__':
@@ -109,12 +115,13 @@ if __name__ == '__main__':
     test = 5
     rospy.init_node('Gantry', anonymous=True)
     # Start all services
-    rospy.Service('/gantry/stop_all', AddTwoInts, service_stop_all)
-    rospy.Service('/gantry/init_home', AddTwoInts, service_initialize_home)
-    rospy.Service('/gantry/rel_pos', AddTwoInts, service_move_to_relative_pos)
-    rospy.Service('/gantry/abs_pos', AddTwoInts, service_move_to_absolute_position)
-    rospy.Service('/gantry/velocity_direct', AddTwoInts, service_move_with_velocity)
+    rospy.Service('/gantry/stop_all', stop_gantry, service_stop_all)
+    rospy.Service('/gantry/init_home', init_home, service_initialize_home)
+    rospy.Service('/gantry/rel_pos', move_to_relative_pos, service_move_to_relative_pos)
+    rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
+    rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
     # Start all subscribers
+    rospy.Subscriber("/gantry/position_des", PointStamped, get_desired_pos)
     # Start Gantry
     x_axis_control = sc.MotorCommunication('/dev/ttyS0', 'belt_drive', 115200, 'belt', 3100, 2000e3)
     y_axis_control = sc.MotorCommunication('/dev/ttyS1', 'spindle_drive', 19200, 'spindle', 1600, 945800)
