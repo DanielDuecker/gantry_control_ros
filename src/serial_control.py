@@ -403,11 +403,8 @@ class MotorCommunication(object):
                       'NP',  # activate 'NotifyPosition' --> sends 'p' if position is reached
                       'M']  # start motion
         self.check_moving()
-        if self.__ismoving is False:
-            for command in moving_seq:
-                self.write_on_port(command)
-        else:
-            print('Warning: new position can only be set IF gantry is NOT moving!')
+        for command in moving_seq:
+            self.write_on_port(command)
         return True
 
     def go_to_pos_mmrad(self, tposmmrad):

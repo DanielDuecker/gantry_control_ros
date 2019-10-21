@@ -4,7 +4,8 @@ import rospy
 import numpy as np
 from rospy_tutorials.srv import AddTwoInts, AddTwoIntsResponse  # has to be changed to actual srv
 from geometry_msgs.msg import PointStamped  # has to be changed to gantry msg
-
+from gantry_control_ros.srv import init_home,move_to_abs_pos,move_to_relative_pos,move_with_vel,stop_gantry,init_homeResponse,move_to_abs_posResponse,move_to_relative_posResponse,move_with_velResponse,stop_gantryResponse
+from gantry_control_ros.msg import gantry
 # GLOBAL CONST:
 MAX_POSITION_X = [0, 3100]
 MAX_POSITION_Y = [0, 1600]
@@ -47,34 +48,61 @@ def stop_everything():
 
 def service_stop_all(data):
     global stop_all
+    print("Gantry Stopped = ",data.data)
     stop_all = data.data
     stop_everything()
-    return AddTwoIntsResponse("Gantry Stopped")
+    if stop_all:
+        return stop_gantryResponse("Gantry Stopped")
+    else:
+        return stop_gantryResponse("Gantry Moves")
 
 
-def service_initialize_home():
+def service_initialize_home(data):
+    global initialize_home
+    initialize_home = True
+    print("INIT Home")
+    x_axis_control.initialize_home_pos()
+    y_axis_control.initialize_home_pos()
+    return init_homeResponse("moving...")
+
+
+def service_move_to_relative_pos(data):
+    global move_to_rel_pos
+    move_to_rel_pos = True
+    print("move_relative_pos")
+    print(data.y)
+    x_axis_control.go_to_delta_pos_mmrad(data.x)
+    y_axis_control.go_to_delta_pos_mmrad(data.y)
+    return move_to_relative_posResponse("moving...")
+
+
+def service_move_to_absolute_position(data):
+    print("move_abs")
     pass
 
+def service_move_with_velocity(data):
+    global move_with_velocity,stop_all
+    if stop_all:
+        print("STOP BUTTON PRESSED IGNORING COMMAND")
+        return move_with_velResponse("STOP BUTTON PRESSED IGNORING COMMAND")
+    else:
+        print("move_vel")
+        #TODO MAX VELOCITY MISSING
+        move_with_velocity=True
+        x_axis_control.set_drive_speed(data.x_d)
+        y_axis_control.set_drive_speed(data.y_d)
 
-def service_move_to_relative_pos():
-    pass
-
-
-def service_move_to_absolute_position():
-    pass
-
-
-def service_move_with_velocity():
-    pass
+        return move_with_velResponse("moving")
 
 
 def motor_control_publisher():
-    global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm
+    global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm,pos_desired_x_mm,pos_desired_y_mm,stop_all
 
-    pub = rospy.Publisher('/gantry/current_position', PointStamped, queue_size=10)
-
+    pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
+    reached = False
     rate = rospy.Rate(100)
     while not rospy.is_shutdown():
+
         if not (stop_all or initialize_home or move_to_rel_pos or move_with_velocity):
             # code for control:
             if pos_desired_x_mm is not None:
@@ -88,14 +116,17 @@ def motor_control_publisher():
         # publish position
         pos_x_mm = x_axis_control.get_posmmrad()
         pos_y_mm = y_axis_control.get_posmmrad()
-        if np.sqrt((pos_x_mm - pos_desired_x_mm) ** 2 + (pos_x_mm - pos_desired_y_mm) ** 2) < WHEN_REACHED_DISTANCE:
-            reached = True
-        else:
-            reached = False
-        send_point = PointStamped()
+        if not pos_desired_x_mm is None:
+            # print("here")
+            if np.sqrt((pos_x_mm - pos_desired_x_mm) ** 2 + (pos_y_mm - pos_desired_y_mm) ** 2) < WHEN_REACHED_DISTANCE:
+                reached = True
+            else:
+                reached = False
+        send_point = gantry()
         send_point.header.stamp = rospy.Time.now()
-        send_point.point.x = pos_x_mm
-        send_point.point.y = pos_y_mm
+        send_point.pos_gantry.x = pos_x_mm
+        send_point.pos_gantry.y = pos_y_mm
+        send_point.reached = reached
         pub.publish(send_point)
         rate.sleep()
 
@@ -103,16 +134,17 @@ def motor_control_publisher():
 def get_desired_pos(data):
     global pos_desired_x_mm , pos_desired_y_mm
 
-    # data = PointStamped()
-    pos_desired_x_mm = data.point.x
-    pos_desired_y_mm = data.point.y
-    #print(pos_desired)
+    # data = gantry()
+    pos_desired_x_mm = data.pos_gantry.x
+    pos_desired_y_mm = data.pos_gantry.y
+    # print(pos_desired_y_mm)
+    # print(pos_desired)
     return
 
 
 if __name__ == '__main__':
-    global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm
-    test = 5
+    # global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm
+
     rospy.init_node('Gantry', anonymous=True)
     # Start all services
     rospy.Service('/gantry/stop_all', stop_gantry, service_stop_all)
@@ -121,7 +153,7 @@ if __name__ == '__main__':
     rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
     rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
     # Start all subscribers
-    rospy.Subscriber("/gantry/position_des", PointStamped, get_desired_pos)
+    rospy.Subscriber("/gantry/position_des", gantry, get_desired_pos)
     # Start Gantry
     x_axis_control = sc.MotorCommunication('/dev/ttyS0', 'belt_drive', 115200, 'belt', 3100, 2000e3)
     y_axis_control = sc.MotorCommunication('/dev/ttyS1', 'spindle_drive', 19200, 'spindle', 1600, 945800)
