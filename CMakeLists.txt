@@ -64,6 +64,7 @@ add_service_files(
   stop_gantry.srv
   move_to_relative_pos.srv
   real_time_mode.srv
+  max_velocity.srv
 #   Service2.srv
 )
 

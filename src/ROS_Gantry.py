@@ -12,9 +12,9 @@ MAX_POSITION_X = [0, 3100]
 MAX_POSITION_Y = [0, 1600]
 MAX_POSITION_Z = [0, 500]
 
-MAX_VELOCITY_X = 3000
-MAX_VELOCITY_y = 3000
-MAX_VELOCITY_z = 3000
+MAX_VELOCITY_X = 1000
+MAX_VELOCITY_y = 1000
+MAX_VELOCITY_z = 1000
 
 WHEN_REACHED_DISTANCE = 1  # distance in 3d in mm
 
@@ -71,11 +71,9 @@ def service_initialize_home(data):
 def service_move_to_relative_pos(data):
     global move_to_rel_pos
     move_to_rel_pos = True
-    print("move_relative_pos")
-    print(data.y)
     x_axis_control.go_to_delta_pos_mmrad(data.x)
     y_axis_control.go_to_delta_pos_mmrad(data.y)
-    return move_to_relative_posResponse("moving...")
+    return move_to_relative_posResponse("Moving to relative Position")
 
 
 def service_start_realtime_mode(data):
@@ -86,12 +84,19 @@ def service_start_realtime_mode(data):
 
 def service_move_to_absolute_position(data):
     global move_to_absolute_position, stop_all
-    move_to_absolute_position=True
+    if stop_all:
+        print("STOP BUTTON PRESSED IGNORING COMMAND")
+        return move_to_abs_posResponse("STOP BUTTON PRESSED IGNORING COMMAND")
+    else:
+        move_to_absolute_position = True
 
-    x_axis_control.go_to_pos_mmrad(data.x)
-    y_axis_control.go_to_pos_mmrad(data.y)
-    print("move_abs")
-    return move_to_abs_posResponse("Moving to position x y z")
+        x_axis_control.go_to_pos_mmrad(data.x)
+        y_axis_control.go_to_pos_mmrad(data.y)
+        # print("move_abs")
+        return move_to_abs_posResponse(
+            "Moving to position X=" + str(data.x) + " Y=" + str(data.y) + " Z=" + str(data.z))
+
+        return move_to_abs_posResponse("Moving to position X=" + str(data.x) + " Y=" + str(data.y) + " Z=" + str(data.z))
 
 
 def service_move_with_velocity(data):
@@ -106,7 +111,7 @@ def service_move_with_velocity(data):
         x_axis_control.set_drive_speed(data.x_d)
         y_axis_control.set_drive_speed(data.y_d)
 
-        return move_with_velResponse("moving")
+        return move_with_velResponse("Moving with velocity of X=" + str(data.x_d) + " Y=" + str(data.y_d))
 
 
 def motor_control_publisher():
@@ -167,7 +172,7 @@ if __name__ == '__main__':
     rospy.Service('/gantry/realtime_mode', real_time_mode, service_start_realtime_mode)
     rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
     rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
-    #TODO create service for max velocity
+    # TODO create service for max velocity
     # Start all subscribers
     rospy.Subscriber("/gantry/position_des", gantry, get_desired_pos)
     # Start Gantry
