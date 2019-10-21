@@ -4,10 +4,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import time as t
 import serial_control as sc
 import hippocampus_toolbox as hc_tools
-import rospy
-import std_msgs
-from std_msgs.msg import Bool
-from gantry_msgs.msg import Gantry
+# import rospy
+# import std_msgs
+# from std_msgs.msg import Bool
+# from gantry_msgs.msg import Gantry
 
 class GantryControl(object):
     def __init__(self, gantry_dimensions=[0, 3100, 0, 1600, 0, 500], use_gui=False, sdr_type='NooElec'):  # [x0 ,x1, y0, y1]
@@ -33,7 +33,7 @@ class GantryControl(object):
 
         self.measpoint =0
 
-        self.gantry_publisher = rospy.Publisher("gantry_position",Gantry,queue_size=1)
+#        self.gantry_publisher = rospy.Publisher("gantry_position",Gantry,queue_size=1)
 
         if use_gui:
             print('Gantry Control - gui mode')
@@ -75,8 +75,8 @@ class GantryControl(object):
                 # self.__oScZ.initialize_extreme_pos()
             print('Rod-Drive: Setup DONE!')
 
-    def get_ganty_publisher(self):
-        return self.gantry_publisher
+    # def get_ganty_publisher(self):
+    #     return self.gantry_publisher
     def get_serial_x_handle(self):
         return self.__oScX
 

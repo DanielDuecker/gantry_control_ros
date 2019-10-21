@@ -2,8 +2,6 @@ import serial_control as sc
 import time
 import rospy
 import numpy as np
-from rospy_tutorials.srv import AddTwoInts, AddTwoIntsResponse  # has to be changed to actual srv
-from geometry_msgs.msg import PointStamped  # has to be changed to gantry msg
 from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, \
     init_homeResponse, move_to_abs_posResponse, move_to_relative_posResponse, move_with_velResponse, \
     stop_gantryResponse, real_time_mode, real_time_modeResponse
@@ -53,8 +51,9 @@ def service_stop_all(data):
     global stop_all
     print("Gantry Stopped = ", data.data)
     stop_all = data.data
-    stop_everything()
+
     if stop_all:
+        stop_everything()
         return stop_gantryResponse("Gantry Stopped")
     else:
         return stop_gantryResponse("Gantry Moves")
