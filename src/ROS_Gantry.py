@@ -4,7 +4,7 @@ import rospy
 import numpy as np
 from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, \
     init_homeResponse, move_to_abs_posResponse, move_to_relative_posResponse, move_with_velResponse, \
-    stop_gantryResponse, real_time_mode, real_time_modeResponse
+    stop_gantryResponse, real_time_mode, real_time_modeResponse, max_velocity, max_velocityResponse
 from gantry_control_ros.msg import gantry
 
 # GLOBAL CONST:
@@ -80,6 +80,15 @@ def service_start_realtime_mode(data):
     global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position
     stop_all = move_with_velocity = move_to_rel_pos = initialize_home = move_to_absolute_position = False
     return real_time_modeResponse("Starting Real Time Mode")
+
+def service_set_max_velocity(data):
+    if not (data.x>3000 or data.x<0):
+        x_axis_control.set_drive_max_speed(data.x)
+    if not (data.y>9000 or data.y<0):
+        y_axis_control.set_drive_max_speed(data.y)
+    # if not (data.z>101 or data.z<0):
+    #     z_axis_control.set_drive_max_speed(data.z)
+    return max_velocityResponse("Max Velocity Set X="+str(data.x)+" Y="+str(data.y))
 
 
 def service_move_to_absolute_position(data):
@@ -172,6 +181,7 @@ if __name__ == '__main__':
     rospy.Service('/gantry/realtime_mode', real_time_mode, service_start_realtime_mode)
     rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
     rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
+    rospy.Service('/gantry/max_velocity', max_velocity, service_set_max_velocity)
     # TODO create service for max velocity
     # Start all subscribers
     rospy.Subscriber("/gantry/position_des", gantry, get_desired_pos)

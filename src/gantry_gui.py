@@ -5,7 +5,7 @@ import ttk
 import numpy as np
 import time as t
 import threading as Thread
-from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, real_time_mode
+from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, real_time_mode, max_velocity
 from gantry_control_ros.msg import gantry
 import rospy
 rospy.init_node('gantry_gui', anonymous=True)
@@ -44,12 +44,16 @@ class GantryControllerObj(object):
         self.realtime_mode_proxy = rospy.ServiceProxy('/gantry/realtime_mode', real_time_mode)
         self.abs_pos_proxy = rospy.ServiceProxy('/gantry/abs_pos', move_to_abs_pos)
         self.vel_direct_proxy = rospy.ServiceProxy('/gantry/velocity_direct', move_with_vel)
+        self.max_velocity_proxy = rospy.ServiceProxy('/gantry/max_velocity', max_velocity)
         self.sub = rospy.Subscriber("/gantry/current_position", gantry, self.get_position_gantry_sub)
 
     def get_position_gantry_sub(self, data):
         self.position_gantry_x = data.pos_gantry.x
         self.position_gantry_y = data.pos_gantry.y
         self.position_gantry_z = data.pos_gantry.z
+
+    def set_max_velocity(self):
+        print(self.max_velocity_proxy(float(self.max_v_x),float(self.max_v_y),float(self.max_v_z)))
 
     def get_position_gantry_xyz(self):
         return self.position_gantry_x, self.position_gantry_y, self.position_gantry_z
@@ -104,14 +108,18 @@ class GantryControllerObj(object):
 
     def max_velocity_x(self, x_d):
         self.max_v_x = x_d
+        self.set_max_velocity()
         return
 
     def max_velocity_y(self, y_d):
         self.max_v_y = y_d
+
+        self.set_max_velocity()
         return
 
     def max_velocity_z(self, z_d):
         self.max_v_z = z_d
+        self.set_max_velocity()
         return
         # def max_velocity(self):#TODO MAX VELOCITY MISSING
         #     self.init_home_proxy(True)
@@ -371,21 +379,21 @@ class PageOne(Tk.Frame):
         entry_max_speed_belt.insert(0, '1000')
         entry_max_speed_belt.grid(row=3, column=1, padx=10)
         button_max_speed_belt = ttk.Button(self, text='set max Speed X axis (<=3000!)',
-                                           command=lambda: self.communication_ROS.max_velocity_x())
+                                           command=lambda: self.communication_ROS.max_velocity_x(entry_max_speed_belt.get()))
         button_max_speed_belt.grid(row=3, column=2, sticky='W', pady=4)
 
         entry_max_speed_spindle = ttk.Entry(self)
         entry_max_speed_spindle.insert(0, '3000')
         entry_max_speed_spindle.grid(row=4, column=1, padx=10)
         button_max_speed_spindle = ttk.Button(self, text='set max Speed Y axis (<=9000!)',
-                                              command=lambda: self.communication_ROS.max_velocity_y())
+                                              command=lambda: self.communication_ROS.max_velocity_y(entry_max_speed_spindle.get()))
         button_max_speed_spindle.grid(row=4, column=2, sticky='W', pady=4)
 
         entry_max_speed_rod = ttk.Entry(self)
         entry_max_speed_rod.insert(0, '101')
         entry_max_speed_rod.grid(row=5, column=1, padx=10)
         button_max_speed_rod = ttk.Button(self, text='set max Speed Z axis (<=101!)',
-                                          command=lambda: self.communication_ROS.max_velocity_z())
+                                          command=lambda: self.communication_ROS.max_velocity_z(entry_max_speed_rod.get()))
         button_max_speed_rod.grid(row=5, column=2, sticky='W', pady=4)
 
 
