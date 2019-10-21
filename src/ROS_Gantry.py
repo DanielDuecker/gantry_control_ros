@@ -4,8 +4,11 @@ import rospy
 import numpy as np
 from rospy_tutorials.srv import AddTwoInts, AddTwoIntsResponse  # has to be changed to actual srv
 from geometry_msgs.msg import PointStamped  # has to be changed to gantry msg
-from gantry_control_ros.srv import init_home,move_to_abs_pos,move_to_relative_pos,move_with_vel,stop_gantry,init_homeResponse,move_to_abs_posResponse,move_to_relative_posResponse,move_with_velResponse,stop_gantryResponse
+from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, \
+    init_homeResponse, move_to_abs_posResponse, move_to_relative_posResponse, move_with_velResponse, \
+    stop_gantryResponse, real_time_mode, real_time_modeResponse
 from gantry_control_ros.msg import gantry
+
 # GLOBAL CONST:
 MAX_POSITION_X = [0, 3100]
 MAX_POSITION_Y = [0, 1600]
@@ -48,7 +51,7 @@ def stop_everything():
 
 def service_stop_all(data):
     global stop_all
-    print("Gantry Stopped = ",data.data)
+    print("Gantry Stopped = ", data.data)
     stop_all = data.data
     stop_everything()
     if stop_all:
@@ -76,19 +79,31 @@ def service_move_to_relative_pos(data):
     return move_to_relative_posResponse("moving...")
 
 
+def service_start_realtime_mode(data):
+    global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position
+    stop_all = move_with_velocity = move_to_rel_pos = initialize_home = move_to_absolute_position = False
+    return real_time_modeResponse("Starting Real Time Mode")
+
+
 def service_move_to_absolute_position(data):
+    global move_to_absolute_position, stop_all
+    move_to_absolute_position=True
+
+    x_axis_control.go_to_pos_mmrad(data.x)
+    y_axis_control.go_to_pos_mmrad(data.y)
     print("move_abs")
-    pass
+    return move_to_abs_posResponse("Moving to position x y z")
+
 
 def service_move_with_velocity(data):
-    global move_with_velocity,stop_all
+    global move_with_velocity, stop_all
     if stop_all:
         print("STOP BUTTON PRESSED IGNORING COMMAND")
         return move_with_velResponse("STOP BUTTON PRESSED IGNORING COMMAND")
     else:
         print("move_vel")
-        #TODO MAX VELOCITY MISSING
-        move_with_velocity=True
+        # TODO MAX VELOCITY MISSING
+        move_with_velocity = True
         x_axis_control.set_drive_speed(data.x_d)
         y_axis_control.set_drive_speed(data.y_d)
 
@@ -96,14 +111,14 @@ def service_move_with_velocity(data):
 
 
 def motor_control_publisher():
-    global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm,pos_desired_x_mm,pos_desired_y_mm,stop_all
+    global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm, pos_desired_x_mm, pos_desired_y_mm, stop_all, move_with_velocity, move_to_rel_pos, initialize_home
 
     pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
     reached = False
     rate = rospy.Rate(100)
     while not rospy.is_shutdown():
 
-        if not (stop_all or initialize_home or move_to_rel_pos or move_with_velocity):
+        if not (stop_all or initialize_home or move_to_rel_pos or move_with_velocity or move_to_absolute_position):
             # code for control:
             if pos_desired_x_mm is not None:
                 x_axis_control.go_to_pos_mmrad(pos_desired_x_mm)
@@ -132,7 +147,7 @@ def motor_control_publisher():
 
 
 def get_desired_pos(data):
-    global pos_desired_x_mm , pos_desired_y_mm
+    global pos_desired_x_mm, pos_desired_y_mm
 
     # data = gantry()
     pos_desired_x_mm = data.pos_gantry.x
@@ -150,8 +165,10 @@ if __name__ == '__main__':
     rospy.Service('/gantry/stop_all', stop_gantry, service_stop_all)
     rospy.Service('/gantry/init_home', init_home, service_initialize_home)
     rospy.Service('/gantry/rel_pos', move_to_relative_pos, service_move_to_relative_pos)
+    rospy.Service('/gantry/realtime_mode', real_time_mode, service_start_realtime_mode)
     rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
     rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
+    #TODO create service for max velocity
     # Start all subscribers
     rospy.Subscriber("/gantry/position_des", gantry, get_desired_pos)
     # Start Gantry

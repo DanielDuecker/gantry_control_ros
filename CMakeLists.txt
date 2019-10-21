@@ -63,6 +63,7 @@ add_service_files(
   move_with_vel.srv
   stop_gantry.srv
   move_to_relative_pos.srv
+  real_time_mode.srv
 #   Service2.srv
 )
 
