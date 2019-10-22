@@ -12,6 +12,8 @@ rospy.init_node('gantry_gui', anonymous=True)
 # from std_msgs.msg import Bool
 # from gantry_msgs.msg import Gantry
 
+import hippocampus_toolbox as hc_tools
+
 LARGE_FONT = ('Tahoma', 12)
 SUPERLARGE_FONT = ('Tahoma', 30)
 SUPERLARGE_FONT_FOR_START = ('Tahoma', 20)
@@ -125,6 +127,8 @@ class GantryControllerObj(object):
         #     self.init_home_proxy(True)
         #     return
 
+    def start_waypoint_following(self):
+        measdata_filename = hc_tools.select_file()
 
 class GantryGui(Tk.Tk):
     def __init__(self, *args, **kwargs):
@@ -335,6 +339,14 @@ class StartPage(Tk.Frame):
         button_real_time_mode = ttk.Button(self, text='Start Real Time Mode',
                                            command=lambda: self.communication_ROS.real_time_mode_service())
         button_real_time_mode.grid(row=0, column=2, sticky='W', padx=10, pady=4)
+
+        """
+        Start Waypointfile - Button
+        """
+        button_real_time_mode = ttk.Button(self, text='Start Waypoint Following',
+                                           command=lambda: self.communication_ROS.start_waypoint_following())
+        button_real_time_mode.grid(row=1, column=2, sticky='W', padx=10, pady=4)
+
 
         """
         Emergency-Stop-Button
