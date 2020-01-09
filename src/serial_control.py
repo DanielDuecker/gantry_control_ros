@@ -3,44 +3,51 @@ import serial
 import numpy as np
 
 
-class MotorCommunication(object):
-
-    def __init__(self, portname, name, baudrate, drivetype, travelling_distance_mmrad, extreme_pos_inc):  #
+class GantryCommunication(object):
+    def __init__(self, portname, name, baudrate):  #
         self.__oserial = []
         self.__portname = portname
         self.__name = name
         self.__isdummy = False
         # "isdummy = True" is for emulation of non connected drives -> gui can run with less drives attached
         self.__baudrate = baudrate
-        self.__drivetype = drivetype
-        self.__travelling_distance_mmrad = float(travelling_distance_mmrad)
         self.__isopen = False
         self.__timewritewait = 0.02  # [s]
         self.__timereadwait = 0.02  # [s]
-        self.__signal = []
-        self.__signallist = ['p', 'h', 'f']
+
         self.__homeknown = False
 
-        self.__extremeknown = True
-        self.__posincmax = int(extreme_pos_inc)
 
         self.__manualinit = False
         self.__ismoving = False
-        self.__tempval = []
 
-        self.__posinc = []
-        self.__tposinc = []
-        self.__posmmrad = []
-        self.__tposmmrad = []
-        self.__rpm = []
-        self.__target_speed_rpm = 0
+        self.__gantry_pos_m = np.array([0, 0, 0])
+        self.__gantry_vel_ms = np.array([0, 0, 0])
 
-        self.__rpmmax = []
-        self.__findingspeed = []
+    """
+        Gantry parameter on teensy
+        
+        incPERmm_x = 2000000/3100
+        incPERmm_y = 945800/1600
+        incPERmm_z = 1920612/940
+        mmPERsPERrpm_x = 1000/28.2/500   # 1000mm/28.2s @  500rpm
+        mmPERsPERrpm_y = 1000/35.4/1000  # 1000mm/35.4s @ 1000rpm
+        mmPERsPERrpm_z = 940/38.2/3000   #  940mm/38.2s @ 3000rpm
+        
+        incPERmm = np.array([incPERmm_x, incPERmm_y, incPERmm_z])
+        mmPERsPERrpm = np.array([mmPERsPERrpm_x, mmPERsPERrpm_y, mmPERsPERrpm_z])
+        self.__gantry_param = [incPERmm, mmPERsPERrpm]
+    """
+    """
+    def get_gantry_param(self):
+        
+        #incPERmm = np.array([incPERmm_x, incPERmm_y, incPERmm_z])
+        #mmPERsPERrpm = np.array([mmPERsPERrpm_x, mmPERsPERrpm_y, mmPERsPERrpm_z])
 
-        self.reset_signal()
-        self.load_drive_data(drivetype)
-        self.__gantry_pos_old = [0, 0, 0]
+        :return: [incPERmm, mmPERsPERrpm]
+        
+        return self.__gantry_param
+    """
 
     def open_port(self):
         """
@@ -61,8 +68,8 @@ class MotorCommunication(object):
             print('~~~~~~~~ (Error message: ' + str(err) + ')')
             print('~~~~~~~~ Please Check the Ports.')
         else:
-            self.__oserial.isOpen()  # open serial port
-            self.__isopen = True
+            # open serial port
+            self.__isopen = self.__oserial.isOpen()
             print('Serial port ' + self.__portname + ' is open!')
         return True
 
@@ -73,251 +80,119 @@ class MotorCommunication(object):
             print('Serial port ' + self.__portname + ' closed!')
         return True
 
-    def reset_signal(self):
-        self.__signal = 0
+    def write_on_port(self, motorcommand, arg1, arg2, arg3):
 
-    def set_manual_init(self, bmanualinit):
-        self.__manualinit = bmanualinit
-
-    def get_manual_init(self):
-        return self.__manualinit
-
-    def listen_to_port(self, waitingfortype='rpm'):
-        if not self.__isdummy:
-            out = ''
-            time.sleep(self.__timereadwait)
-
-            while self.__oserial.inWaiting() > 0:
-                new_data = self.__oserial.read(1)
-                out += new_data  # pure number string
-
-            # teststring = '-2000\r\np\r\nf\r\nOK\r\n'
-            # out = teststring
-
-            out_split = out.rstrip().split('\r\n')
-            for item in out_split:
-                try:
-                    self.__tempval = int(item)
-                    #print ('numberfound')
-                except ValueError:
-                    if item == 'p':
-                        self.__signal = item
-                        # print ('Arrived at target position -> p-flag')
-                    elif item == 'h':
-                        self.__signal = item
-                        print ('h found')
-                    elif item == 'f':
-                        self.__signal = item
-                        print ('f found')
-                    elif item == 'OK':
-                        dummy = 1
-                        #print('Debugmessage: Ignore "OK"')
-                    else:
-                        print('Unknown signal found on serial port: "' + item + '"')
-        else:
-            self.__tempval = int(0)
-        # print(out_split) # just for debugging
-        return True  # pure number string
-
-    def update_data(self):
-        self.get_posinc()
-        self.get_rpm()
-
-    def load_drive_data(self, drivetype):
-        if drivetype == 'belt':
-            self.__rpmmax = 3000
-            self.__findingspeed = 1000
-        elif drivetype == 'spindle':
-            self.__rpmmax = 7000
-            self.__findingspeed = 2500
-        elif drivetype == 'driveshaft':
-            self.__rpmmax = 123
-            self.__findingspeed = 12
-        elif drivetype == 'threadedrod':
-            self.__rpmmax = 101
-            self.__findingspeed = 12
-        else:
-            print('Unknown drive type!')
-            print('drive types known "belt" and "spindle"')
-            print('exiting application')
-            exit()
-
-    def convert_mmrad2inc(self, pos_mmrad):
-        pos_inc = int(pos_mmrad * (self.__posincmax/self.__travelling_distance_mmrad))
-        return pos_inc
-
-    def convert_inc2mmrad(self, pos_inc):
-        pos_mmrad = pos_inc * (self.__travelling_distance_mmrad/self.__posincmax)
-        return pos_mmrad
-
-    def write_on_port(self, strcommand):
-        if not self.__isdummy:
-            self.__oserial.write(strcommand + '\r\n')
-            time.sleep(self.__timewritewait)
-        return True
-
-
-    def set_home_pos_known(self, bknown):
-        self.__homeknown = bknown
-
-    def get_rpm(self):
-        self.write_on_port('GN')
-        self.listen_to_port('rpm')
-        # print(str(self.__tempval))
-        if abs(self.__tempval) < 12000:  # max motor speed = 7000rpm
-            self.__rpm = self.__tempval
-        return self.__rpm
-
-    def set_posincmax(self, posincmax):
-        self.__posincmax = posincmax
-
-    def get_posinc(self):
-        """
-        gets the actual position and updates the member variables for position (both [inc] and [mm] or [rad])
-        :return: pos_inc [inc]
-        """
-        self.write_on_port('POS')
-        self.listen_to_port('pos')
-        self.__posinc = self.__tempval
-        if self.__posincmax != []:
-            self.__posmmrad = self.convert_inc2mmrad(self.__posinc)
-        return self.__posinc
-
-    def get_posmmrad(self):
-        """
-        gets the actual position and updates the member variables for position (both [inc] and [mm])
-        :return: pos_mmrad [mm] or [rad]
-        """
-        self.write_on_port('POS')
-        self.listen_to_port('pos')
-        self.__posinc = self.__tempval
-        self.__posmmrad = self.convert_inc2mmrad(self.__posinc)
-        return self.__posmmrad
-
-    def set_target_speed_rpm(self, target_speed_rpm):
-        self.__target_speed_rpm = target_speed_rpm
-
-    def get_target_speed_rpm(self):
-        return self.__target_speed_rpm
-
-    def set_target_posinc(self, target_posinc):
-        self.__tposinc = target_posinc
-
-    def set_target_posmmrad(self, target_posmmrad):
-        self.__tposmmrad = target_posmmrad
-
-    def get_target_posmmrad(self):
-        return self.__tposmmradp
-
-    def is_home_pos_known(self):
-        return self.__homeknown
-
-    def is_extreme_pos_known(self):
-        return self.__extremeknown
-
-    def start_home_seq(self):
-        self.write_on_port('GOHOSEQ')
-
-    def check_initialization_status(self, extreme_pos_mode=False):
-        """
-        Checks if home position is known and closes application otherwise
-        :return:
-        """
-        if self.is_home_pos_known() is False:
-            print('Home position is unknown!')
-            print('exiting method')
+        str_arg1 = "%06d" % (arg1,)
+        str_arg2 = "%06d" % (arg2,)
+        str_arg3 = "%06d" % (arg3,)
+        if len(str_arg1) > 6:
+            print("motor command argument 1 is too long")
+            print(str_arg1)
             return False
-        if self.is_extreme_pos_known() is False and extreme_pos_mode is False:
-            print('Extreme position is unknown!')
-            print('exiting method')
+        if len(str_arg2) > 6:
+            print("motor command argument 2 is too long")
+            print(str_arg2)
             return False
-        return True
+        if len(str_arg3) > 6:
+            print("motor command argument 3 is too long")
+            print(str_arg3)
+            return False
 
-    def check_moving(self):
-        """
-        pos_file_rel_path = '/home/hippoc/src/Gantry_Nathalie/live_position.txt'
+        command = {
+            'enable': "a",
+            'disable': "b",
+            'setmaxspeed': "c",
+            'gohomeseq': "d",
+            'goto': "e",
+            'gorel': "f",
+            'tagetvelocity': "g"
+        }
+        print("write on port: " + motorcommand)
+        str_command = command.get(motorcommand) + str_arg1 + str_arg2 + str_arg3
 
+        if len(str_command) == 19:
+            # print("command: " + str_command + " has length:" + str(len(str_command)))
+            str_com_full = str_command+'\r\n'
+            self.__oserial.write(str_com_full)
+            print(str_com_full)
+            return True
+        else:
+            print("motor command is too long")
+            print(str_command)
+            print("length = " + str(len(str_command)))
+            return False
 
-        #def get_gantry_pos():
+    def listen_to_port(self):
+        out = ""
+        while self.__oserial.inWaiting() > 0:
+            new_data = self.__oserial.read(1)
+            out += new_data  # pure number string
 
-        # somehow get the current position of the gantry
-        with open(pos_file_rel_path) as pos_file:  # pos_file: 'wp_x, wp_y, wp_z, num_wp'
-            data = pos_file.read().split(' ')
-            # data = ''
-            # print data
-            if len(data) == 5:
-                i = 0
-                # print('len data: ' + str(len(data)))
-                while i < len(data):
-                    data[i] = float(data[i])
-                    i += 1
-                gantry_position = [data[0] / 1000 + 0.45, data[1] / 1000 + 0.065, data[2] / 1000 + 0.875]
-                delta_move = np.linalg.norm(np.array([[gantry_position[0]-self.__gantry_pos_old[0]],
-                                                      [gantry_position[1]-self.__gantry_pos_old[1]]]))
-                self.__gantry_pos_old = gantry_position
-
+        out_split = out.rstrip().split('\r\n')
+        last_string = out_split[-1].rstrip().split(',')
+        if len(last_string) == 6:
+            if last_string[-1] == '':
+                return False
             else:
-                gantry_position = self.__gantry_pos_old
-                print('found empty rechnung')
-        #    return gantry_position
-        """
-        if abs(self.get_rpm()) < 10:
-            self.__ismoving = False
-            return False
-        else:
-            time.sleep(0.1)
-            self.__ismoving = True
-            return True
-        """
-        if abs(delta_move) > 2:
-            self.__ismoving = False
-            return False
-        else:
-            self.__ismoving = True
-            return True
-        """
+                x_pos_mm = int(last_string[0])
+                x_vel_mms = int(last_string[1])
+                y_pos_mm = int(last_string[2])
+                y_vel_mms = int(last_string[3])
+                z_pos_mm = int(last_string[4])
+                z_vel_mms = int(last_string[5])
 
-    def get_dist_to(self, target_pos_mmrad):
-        """
-        Calculates the distance [mm] or [rad] from the actual position to the target position
-        :param target_pos_mmrad
-        :return: target_pos_mmrad - drive_pos_mmrad
-        """
-        drive_pos_mmrad = self.get_posmmrad()
-        return target_pos_mmrad - drive_pos_mmrad
-
-    def check_arrival_signal(self):
-        self.update_data()
-        if self.__signal == 'p':
-            self.reset_signal()
-            return True
-
-        elif self.__signal == 'h' or self.__signal == 'f':
-            self.reset_signal()
-            return True
-
-        self.reset_signal()
+                self.__gantry_pos_m = np.array([float(x_pos_mm)/1000, float(y_pos_mm)/1000, float(z_pos_mm)/1000])
+                self.__gantry_vel_ms = np.array([float(x_vel_mms)/1000, float(y_vel_mms)/1000, float(z_vel_mms)/1000])
+                return True
         return False
 
-    def get_status(self):
-        self.update_data()
+    def update_gantry_data(self):
+        if self.listen_to_port():
+            if max(abs(self.__gantry_vel_ms)) < 5:
+                self.__ismoving = False
+            else:
+                self.__ismoving = True
+            return True
+        else:
+            return False
 
-        print('\n  ### Status Report for ' + self.__name + ' ###')
-        print('Drive type: ' + str(self.__drivetype))
-        print('Portname: ' + self.__portname)
-        print('Name: ' + self.__name)
-        print('Port open: ' + str(self.__isopen))
-        print('Time wait after writing: ' + str(self.__timewritewait))
-        print('Time wait before reading: ' + str(self.__timereadwait))
-        print('Signal: ' + str(self.__signal))
-        print('IsMoving: ' + str(self.__ismoving))
-        print('TempVal: ' + str(self.__tempval))
-        print('PosIncMax: ' + str(self.__posincmax))
-        print('TPosInc: ' + str(self.__tposinc))
-        print('PosInc: ' + str(self.__posinc))
-        print('PosMM/RAD: ' + str(self.__posmmrad))
-        print('RPM: ' + str(self.__rpm))
+    def enable_drives(self):
+        self.write_on_port('enable', 0, 0, 0)
 
+    def disable_drives(self):
+        self.write_on_port('disable', 0, 0, 0)
+
+    def goto_position(self, target_pos_m):
+        self.write_on_port('goto', int(target_pos_m[0]*1000),
+                                   int(target_pos_m[1]*1000),
+                                   int(target_pos_m[2]*1000))
+
+    def gorel_position(self, move_rel_pos_m):
+        self.write_on_port('gorel', int(move_rel_pos_m[0] * 1000),
+                                    int(move_rel_pos_m[1] * 1000),
+                                    int(move_rel_pos_m[2] * 1000))
+
+    def target_velocity(self, target_vel_ms):
+        self.write_on_port('tagetvelocity', int(target_vel_ms[0]*1000),
+                                            int(target_vel_ms[1]*1000),
+                                            int(target_vel_ms[2]*1000))
+
+    def start_home_seq(self):
+        self.write_on_port('gohomeseq', 0, 0, 0)
+
+    def set_max_speed_ms(self, max_speed_ms):
+        self.write_on_port('setmaxspeed', int(max_speed_ms[0]*1000),
+                                          int(max_speed_ms[1]*1000),
+                                          int(max_speed_ms[2]*1000))
+
+    def get_position_m(self):
+        return self.__gantry_pos_m
+
+    def get_velocity_ms(self):
+        return self.__gantry_vel_ms
+
+
+"""
     def enter_manual_init_data(self):
         print('Do you want to enter extreme position manually? (yes/no)')
         input = raw_input("")
@@ -383,168 +258,5 @@ class MotorCommunication(object):
                 if out != '':
                     print "<<" + out
 
-    def set_drive_speed(self, v_inc):
-
-        command = 'V'+str(v_inc)  # start moving with v_inc speed
-        self.write_on_port(command)
-        self.check_moving()
-
-        return True
-
-    def set_drive_max_speed(self, max_speed):
-        command = 'SP'+str(max_speed)  # set max speed (will be reset when drive is powered on again)
-        self.write_on_port(command)
-        return True
-
-    def go_to_delta_pos_mmrad(self, delta_pos_mmrad):  # move relative from actual position
-        delta_pos_inc = self.convert_mmrad2inc(delta_pos_mmrad)
-
-        moving_seq = ['LR'+str(delta_pos_inc),  # set relative target position in [inc]
-                      'NP',  # activate 'NotifyPosition' --> sends 'p' if position is reached
-                      'M']  # start motion
-        self.check_moving()
-        for command in moving_seq:
-            self.write_on_port(command)
-        return True
-
-    def go_to_pos_mmrad(self, tposmmrad):
-        """
-
-        :param tposinc: absolute target position in [inc]
-        :return:
-        """
-        if self.check_initialization_status() is False:
-            return False
-
-        tposinc = self.convert_mmrad2inc(tposmmrad)
-        self.set_target_posinc(tposinc)
-        self.set_target_posmmrad(tposmmrad)
-
-        moving_seq = ['LA'+str(tposinc),  # set absolute target position in [inc]
-                      'NP',  # activate 'NotifyPosition' --> sends 'p' if position is reached
-                      'M']  # start motion
-        trying = True
-        counter = 0
-        maxtrys = 10
-        for command in moving_seq:
-            self.write_on_port(command)
-        # while trying:
-        #     counter += 1
-        #     self.check_moving()
-        #     if self.__ismoving is False:
-        #         for command in moving_seq:
-        #             self.write_on_port(command)
-        #
-        #         trying = False
-        #         self.check_moving()
-        #         # print ('Start moving to Position: ' + str(tposinc))
-        #         return True
-        #     else:
-        #         time_wait = 0.1
-        #         print(self.__name + ' cannot move to new target position, still moving to old target position!')
-        #         #print('Waiting for ' + str(time_wait) + 's')
-        #         #print('Try ' + str(counter) + '/' + str(maxtrys))
-        #         #time.sleep(time_wait)
-        #     if counter >= maxtrys:
-        #         trying = False  # give up trying
-
-        return True
-
-    def initialize_home_pos(self):
-        """
-
-        :return:
-        """
-        print('Start initialization sequence --> going home')
-        if self.check_moving() is False:
-
-            self.start_home_seq()
-
-            if self.check_moving() is True:
-                cominghome = True
-                while cominghome:
-                    # give position
-
-                    time.sleep(1.0)
-
-                    print(self.__name + ' Coming-Home position ' + str(self.get_posinc()) +
-                          'inc @ ' + str(self.get_rpm()) + 'rpm')
-                    # check arrival at extreme position
-                    if self.__signal == 'h' or self.__signal == 'f':
-                        self.__homeknown = True
-                        print(self.__name + ' reached home position!\n')
-                        time.sleep(0.2)
-                        cominghome = False
-                    self.reset_signal()
-
-            # elif self.__ismoving is False and try_coming_home == 0:
-            # todo: switch t0 manual mode
-
-            else:
-                print('Failed to start "go home sequence"! ')
-                print('Leaving >>AUTO_MODE<< ...')
-                print('Entering >>MANUAL_MODE<< ...')
-        else:
-            print('Cannot start homing sequence ' + self.__name + ' is moving!')
-
-        print('Finished coming home sequence!')
-
-    def initialize_extreme_pos(self):
-        if self.check_initialization_status(True) is False:
-            return False
-
-        print('Start finding extreme position sequence')
-        if self.check_moving() is False:
-            self.write_on_port('V'+str(self.__findingspeed))
-
-            if self.check_moving() is True:
-                findingextreme = True
-                while findingextreme:
-                    # give position
-
-                    time.sleep(2.0)
-
-                    print(self.__name + ' Init.Extreme position ' + str(self.get_posinc()) +
-                          'inc @ ' + str(self.get_rpm()) + 'rpm')
-
-                    # check arrival at extreme position
-                    if self.__signal == 'h' or self.__signal == 'f':
-                        self.__extremeknown = True
-                        print(self.__name + ' reached extreme position!')
-                        time.sleep(0.2)
-                        self.set_posincmax(self.get_posinc())
-                        print('Extreme position at ' + str(self.__posincmax) + ' inc.\n')
-
-                        findingextreme = False
-                    self.reset_signal()
-
-            # elif self.__ismoving is False and try_coming_home == 0:
-            # todo: switch t0 manual mode
-
-            else:
-                print('Failed to start "finding extreme sequence"! ')
-                #print('Leaving >>AUTO_MODE<< ...')
-                #print('Entering >>MANUAL_MODE<< ...')
-                print('This is still a todo... =(')
-
-            if self.__homeknown and self.__extremeknown:
-                print('Finished initialization sequence!')
-                print('Home and extreme positions are known!\n')
-                print('Go back to home position')
-
-                time.sleep(1)
-
-                self.go_to_pos_mmrad(0)
-
-                barrived = False
-                while barrived is False:
-                    time.sleep(0.5)
-                    barrived = self.check_arrival_signal()
-                print('Good to be home:')
-                print('Arrived at home position')
-                time.sleep(2)
-
-
-        else:
-            print('Cannot start finding extreme position sequence ' + self.__name + ' is moving!')
+"""
 

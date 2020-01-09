@@ -9,11 +9,14 @@ import hippocampus_toolbox as hc_tools
 # from std_msgs.msg import Bool
 # from gantry_msgs.msg import Gantry
 
+
 class GantryControl(object):
-    def __init__(self, gantry_dimensions=[0, 3100, 0, 1600, 0, 500], use_gui=False, sdr_type='NooElec'):  # [x0 ,x1, y0, y1]
-        self.__dimensions = gantry_dimensions
-        self.__gantry_pos = [0, 0, 0]  # initial position after start
-        self.__target_wp_mmrad = []
+    def __init__(self, gantry_workspace=np.array([[0, 3.1],[0, 1.6], [0, 0.5]]), use_gui=False, sdr_type='NooElec'):  # [x0 ,x1, y0, y1]
+        self.__gantry_ws = gantry_workspace
+        self.__gantry_pos = np.array([0, 0, 0])  # [m] initial position after start
+        self.__gantry_vel = np.array([0, 0, 0])
+        self.__target_wp = np.array([0, 0, 0])  # [m]
+
         self.__oRf = []
         # self.__oCal = []
         self.__oLoc = []
@@ -21,42 +24,36 @@ class GantryControl(object):
         self.__oScY = []  # belt-drive
         self.__oScZ = []  # threaded-rod-drive
         self.__maxposdeviation_mm = 2  # [mm] max position deviation per axis
-        self.__maxposdeviation_rad = 10e-2  # [rad] max position deviation per axis
 
-        self.__oScX = sc.MotorCommunication('/dev/ttyS0', 'belt_drive', 115200, 'belt', 3100, 2000e3)
-        self.__oScY = sc.MotorCommunication('/dev/ttyS1', 'spindle_drive', 19200, 'spindle', 1600, 945800)
-        self.__oScZ = sc.MotorCommunication('/dev/ttyUSB2', 'tread_drive', 19200, 'threadedrod', 700, 7590)  # USB0 / USB1 / USB2 ...
+        self.__oScGantry = sc.GantryCommunication('/dev/ttyS0', 'teensy_40', 57600)  # all in meters from here on
 
         self.__sdr_type = sdr_type
 
         self.__starttime = []
 
-        self.measpoint =0
+        self.measpoint = 0
 
 #        self.gantry_publisher = rospy.Publisher("gantry_position",Gantry,queue_size=1)
 
         if use_gui:
             print('Gantry Control - gui mode')
-            self.__oScX.open_port()
-            self.__oScY.open_port()
-            self.__oScZ.open_port()
+            self.__oScGantry.open_port()
 
             # set home position known flao
-            self.__oScX.set_home_pos_known(True)
-            self.__oScY.set_home_pos_known(True)
-            self.__oScZ.set_home_pos_known(True)
+            # self.__oScGantry.set_home_pos_known(True)
+
 
         else:
 
             # belt-drive
-            self.__oScX.open_port()
-            self.__oScX.start_manual_mode()
-            self.__oScX.enter_manual_init_data()
-            if self.__oScX.get_manual_init() is False:
-                self.__oScX.initialize_home_pos()
+            self.__oScGantry.open_port()
+            # self.__oScX.start_manual_mode()
+            # self.__oScX.enter_manual_init_data()
+            # if self.__oScX.get_manual_init() is False:
+                # self.__oScX.initialize_home_pos()
                 # self.__oScX.initialize_extreme_pos()
-            print('Belt-Drive: Setup DONE!')
-
+            # print('Belt-Drive: Setup DONE!')
+        """
             # spindle-drive
             self.__oScY.open_port()
             self.__oScY.start_manual_mode()
@@ -74,9 +71,12 @@ class GantryControl(object):
                 self.__oScZ.initialize_home_pos()
                 # self.__oScZ.initialize_extreme_pos()
             print('Rod-Drive: Setup DONE!')
-
+        """
     # def get_ganty_publisher(self):
     #     return self.gantry_publisher
+    def get_serial_gantry_handle(self):
+        return self.__oScGantry
+    """
     def get_serial_x_handle(self):
         return self.__oScX
 
@@ -85,9 +85,9 @@ class GantryControl(object):
 
     def get_serial_z_handle(self):
         return self.__oScZ
-
+    """
     def get_gantry_dimensions(self):
-        return self.__dimensions
+        return self.__gantry_ws
 
     def get_gantry_pos(self):
         return self.__gantry_pos
@@ -98,92 +98,79 @@ class GantryControl(object):
     def get_starttime(self):
         return self.__starttime
 
-    def set_new_max_speed_x(self, max_speed):
+    def set_new_max_speed(self, max_speed):
         belt_speed_limit = 3000
-        if max_speed > belt_speed_limit:
+        spindle_speed_limit = 9000
+        rod_speed_limit = 1000
+
+        if max_speed[0] > belt_speed_limit:
             print('Warning: Not able to set max belt speed to '+str(max_speed)+' limit is ' + str(belt_speed_limit) + '!!!')
-            return True
-        self.__oScX.set_drive_max_speed(max_speed)
+            return False
+        if max_speed[1] > spindle_speed_limit:
+            print('Warning: Not able to set max spindle speed to '+str(max_speed)+' limit is ' + str(spindle_speed_limit) + '!!!')
+            return False
+        if max_speed[2] > rod_speed_limit:
+            print('Warning: Not able to set max rod speed to '+str(max_speed)+' limit is ' + str(rod_speed_limit) + '!!!')
+            return False
+
+        self.__oScGantry.set_max_speed(max_speed)
+
         print('Set new belt max speed to ' + str(max_speed))
         return True
 
-    def set_new_max_speed_y(self, max_speed):
-        spindle_speed_limit = 9000
-        if max_speed > spindle_speed_limit:
-            print('Warning: Not able to set max spindle speed to '+str(max_speed)+' limit is ' + str(spindle_speed_limit) + '!!!')
-            return True
-        self.__oScY.set_drive_max_speed(max_speed)
-        print('Set new spindle max speed to ' + str(max_speed))
+    def go_to_abs_pos(self, pos_x_m, pos_y_m, pos_z_m):
+        self.__oScGantry.goto_position(np.array(pos_x_m, pos_y_m, pos_z_m))
         return True
 
-    def set_new_max_speed_z(self, max_speed):
-        rod_speed_limit = 101
-        if max_speed > rod_speed_limit:
-            print('Warning: Not able to set max rod speed to '+str(max_speed)+' limit is ' + str(rod_speed_limit) + '!!!')
-            return True
-        self.__oScZ.set_drive_max_speed(max_speed)
-        print('Set new rod max speed to ' + str(max_speed))
+    def go_to_rel_pos(self, dx_pos_m, dy_pos_m, dz_pos_m):
+        self.__oScGantry.gorel_position(np.array(dx_pos_m, dy_pos_m, dz_pos_m))
+        print('Move gantry by  dx= ' + str(dx_pos_m) + 'm dy = ' + str(dy_pos_m) + 'm dz = ' + str(dz_pos_m))
         return True
-
-    def go_to_abs_pos(self, pos_x, pos_y, pos_a):
-        self.__oScX.go_to_pos_mmrad(pos_x)
-        self.__oScY.go_to_pos_mmrad(pos_y)
-        self.__oScZ.go_to_pos_mmrad(pos_a)
-        print('Move gantry to position x = ' + str(pos_x) + 'mm y = ' + str(pos_y) + 'mm alpha = ' + str(pos_a))
-        return True
-
-    def go_to_rel_pos(self, dx_pos, dy_pos, da_pos):
-        self.__oScX.go_to_delta_pos_mmrad(dx_pos)
-        self.__oScY.go_to_delta_pos_mmrad(dy_pos)
-        self.__oScZ.go_to_delta_pos_mmrad(da_pos)
-        print('Move gantry by  dx= ' + str(dx_pos) + 'mm dy = ' + str(dy_pos) + 'mm dalpha = ' + str(da_pos))
-        return True
-
-    def set_gantry_pos(self, new_pos):
-        self.__gantry_pos = new_pos
 
     def set_target_wp(self, target_wp):
-        if len(target_wp) == len(self.__gantry_pos):
-            if self.check_wp_in_workspace(target_wp):
-                self.__target_wp_mmrad = target_wp
-                b_new_wp = True
-            else:
-                print('ERROR:target way-point: x=' + str(target_wp(0) + ' y=' + str(target_wp(1)) + ' alpha=' + str(target_wp(2)) + ' not in workspace'))
-                b_new_wp = False
+
+        if self.check_wp_in_workspace(target_wp):
+            self.__target_wp = target_wp
+            b_new_wp = True
         else:
-            print('ERROR: Dimension mismatch!')
-            print('len(target_wp) ='+str(len(target_wp))+' ~= len(self.__gantry_pos)  ='+str(len(self.__gantry_pos)))
+            print('ERROR:target way-point: x=' + str(target_wp[0] + ' y=' + str(target_wp[1]) + ' z=' + str(target_wp[2]) + ' not in workspace'))
             b_new_wp = False
+
         return b_new_wp
 
-    def get_target_wp_mmrad(self):
-        return self.__target_wp_mmrad
+    def get_target_wp(self):
+        return self.__target_wp
 
-    def get_gantry_pos_xyz_mmrad(self):
-        pos_x_mm = self.__oScX.get_posmmrad()  # belt-drive
-        pos_y_mm = self.__oScY.get_posmmrad()  # spindle-drive
-        pos_z_mm = self.__oScZ.get_posmmrad()  # rod-drive
-        pos_vec = [pos_x_mm, pos_y_mm, pos_z_mm]
-        return pos_vec
+    """
+    def get_gantry_pos_xyz(self):
+        return self.__oScGantry.get_position()
+
+    def get_gantry_vel_xyz(self):
+        return self.__oScGantry.get_velocity()()
 
     def start_go_home_seq_xyz(self):
         self.__oScX.start_home_seq()  # belt-drive
         self.__oScY.start_home_seq()  # spindle-drive
-
+    """
     def check_wp_in_workspace(self, wp):
         gantry_dim = self.get_gantry_dimensions()
 
-        if wp[0] >= gantry_dim[0] and wp[0] <= gantry_dim[1] and wp[1] >= gantry_dim[2] and wp[1] <= gantry_dim[3] and wp[2] >= gantry_dim[4] and wp[2] <= gantry_dim[5]:
-            valid_wp = True
+        if  wp[0] >= gantry_dim[0,0] and \
+            wp[0] <= gantry_dim[0,1] and \
+            wp[1] >= gantry_dim[1,0] and \
+            wp[1] <= gantry_dim[1,1] and \
+            wp[2] >= gantry_dim[2,0] and \
+            wp[2] <= gantry_dim[2,1]:
+            return True
         else:
             print ('ERROR: Target way-point cannot be approached!')
             print ('Target way-point ' + str(wp) + ' does not lie within the gantry workspace ' +
                    'x= [' + str(gantry_dim[0]) + ' ... ' + str(gantry_dim[1]) + '], ' +
                    'y= [' + str(gantry_dim[2]) + ' ... ' + str(gantry_dim[3]) + '], ' +
                    'alpha= [' + str(gantry_dim[4]) + ' ... ' + str(gantry_dim[5]) + ']')
-            valid_wp = False
-        return valid_wp
+            return False
 
+    """
     def transmit_wp_to_gantry(self, targetwp):
         if self.set_target_wp(targetwp):
             btransmission = True
@@ -191,105 +178,65 @@ class GantryControl(object):
             print ('ERROR: wp-transmission to gantry failed!')
             btransmission = False
         return btransmission
-
-    def confirm_arrived_at_target_wp(self, tolx_mm=2, toly_mm=2, tolz_mm=1):
+    """
+    def confirm_arrived_at_target_wp(self, pos_tolerance):
         """
         This method checks whether the gantry has arrived at its target position
         within a range of 'maxdeviation' [mm]
-        :param tolx: position tolerance
-        :param toly: position tolerance
-        :return:
-        """
-        """
-
+        :param pos_tolerance: position tolerance
         :return: flag - arrived true/false
         """
         barrival_confirmed = False
-        gantry_pos_mmrad = self.get_gantry_pos_xyz_mmrad()
-        target_pos_mmrad = self.get_target_wp_mmrad()
-        distx = abs(gantry_pos_mmrad[0] - target_pos_mmrad[0])
-        disty = abs(gantry_pos_mmrad[1] - target_pos_mmrad[1])
-        dista = abs(gantry_pos_mmrad[2] - target_pos_mmrad[2])
 
-        if distx < tolx_mm and disty < toly_mm and dista < tolz_mm:
+        dist_to_wp = abs(self.get_gantry_pos()- self.get_target_wp())
+
+        if max(dist_to_wp)<pos_tolerance:
             barrival_confirmed = True
 
         return barrival_confirmed
 
-    def start_moving_gantry_to_target(self):
-        target_wp = self.get_target_wp_mmrad()
-
-        print ('Move gantry to way-point x [mm] = ' + str(target_wp[0]) + ' y [mm] = ' + str(target_wp[1]) + ' z [mm] = ' + str(target_wp[2]))
-        self.__oScX.go_to_pos_mmrad(target_wp[0])
-        self.__oScY.go_to_pos_mmrad(target_wp[1])
-        self.__oScZ.go_to_pos_mmrad(target_wp[2])
-        #pub = rospy.Publisher('done', Bool, queue_size=10)
-        #pub.publish(True)
-    def move_gantry_to_target(self):
+    def move_to_target(self):
         global pub
-        self.start_moving_gantry_to_target()
+        target_wp = self.get_target_wp()
+
+        print ('Move gantry to position[m] = ' + str(target_wp))
+        self.__oScGantry.goto_position(target_wp)
 
         bArrived_all = False
         while bArrived_all is False:
             t.sleep(0.01)
 
-            actpos_X_mm, actpos_Y_mm, actpos_Z_mm = self.get_gantry_pos_xyz_mmrad()
-            actpos = [actpos_X_mm, actpos_Y_mm, actpos_Z_mm]
-            # print('Actual position: x = ' + str(round(actpos[0], 1)) + 'mm y = ' + str(round(actpos[1], 1)) + 'mm z = ' + str(round(actpos[2], 1)) + 'mm')
-            self.set_gantry_pos(actpos)
-            """
-            dist_x = abs(self.get_gantry_pos()[0] - target_wp[0])
-            dist_y = abs(self.get_gantry_pos()[1] - target_wp[1])
-            dist_z = abs(self.get_gantry_pos()[2] - target_wp[2])
-            if dist_x < self.__maxposdeviation_mm and dist_y < self.__maxposdeviation_mm and dist_a < self.__maxposdeviation_mm:
-                print ('Arrived at way-point')
-                bArrived_all = True
-            """
-
-            if self.confirm_arrived_at_target_wp():
-
-                print ('Arrived at way-point')
-                bArrived_all = True
-
-                rospy.sleep(0.5)
-                pub = rospy.Publisher('position_reached', Bool, queue_size=1)
-                pub.publish(True)
-                rospy.sleep(0.5)
-                pub.publish(False)
-
-                msg=Gantry()
-                msg.id=self.measpoint
-                msg.reached.data = True
-                msg.header.stamp = rospy.Time.now()
-                msg.position.x = actpos_X_mm
-                msg.position.y = actpos_Y_mm
-                msg.position.z = actpos_Z_mm
-
-                msg.reached.data=False
-
-            '''
-            #print ('Arrived at way-point')
-            bArrived_all = self.confirm_arrived_at_target_wp()
-            '''
-
+            actpos = self.get_gantry_pos()
             msg = Gantry()
             msg.id = self.measpoint
-            msg.reached.data = True
             msg.header.stamp = rospy.Time.now()
-            msg.position.x = actpos_X_mm
-            msg.position.y = actpos_Y_mm
-            msg.position.z = actpos_Z_mm
+            msg.position.x = actpos[0]
+            msg.position.y = actpos[1]
+            msg.position.z = actpos[2]
+
+            if self.confirm_arrived_at_target_wp():
+                print ('Arrived at way-point' + str(actpos))
+                bArrived_all = True
+
+                rospy.sleep(0.1)
+                pub = rospy.Publisher('position_reached', Bool, queue_size=1)
+                pub.publish(True)
+                rospy.sleep(0.1)
+                pub.publish(False)
+
+                msg.reached.data=False
+            else:
+                msg.reached.data = True
+
 
             self.gantry_publisher.publish(msg)
             #msg.reached.data = False
             #pub2.publish(msg)
 
-
-
         # @todo: position feedback from motor  check whether position is within a suitable range
 
         return bArrived_all
-
+    """
     def move_gantry_to_target_manual(self):
         target_wp = self.get_target_wp_mmrad()
 
@@ -311,15 +258,15 @@ class GantryControl(object):
             bArrived = False
 
         return bArrived
-
-    def follow_wp(self, start_wp, wp_list):
+    """
+    def follow_wp(self, start_position, wp_list):
         num_wp = len(wp_list)
         print('Number of way points: ' + str(num_wp))
         start_time = t.time()
 
-        self.set_target_wp(start_wp)
-        self.start_moving_gantry_to_target()
-        print('Moving to start position = ' + str(start_wp))
+        self.set_target_wp(start_position)
+        self.move_to_target()
+        print('Moving to start position = ' + str(start_position))
         while not self.confirm_arrived_at_target_wp():
             t.sleep(0.2)
         print('Arrived at start point')
@@ -332,7 +279,7 @@ class GantryControl(object):
         for wp in wp_list:
             # go to wp
             self.set_target_wp(wp)
-            self.start_moving_gantry_to_target()
+            self.move_to_target()
             not_arrived_at_wp = True
             print('Moving to wp = ' + str(wp))
 
@@ -340,7 +287,7 @@ class GantryControl(object):
             while not_arrived_at_wp:
                 meas_counter += 1
                 time_elapsed = t.time() - start_time
-                pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos_xyz_mmrad()
+                pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos()
                 if self.confirm_arrived_at_target_wp():
                     not_arrived_at_wp = False
 
@@ -348,7 +295,7 @@ class GantryControl(object):
             print('Logging with avg. ' + str(meas_freq) + ' Hz')
         return True
 
-    def follow_wp_and_take_measurements(self, start_wp=[1000, 1000, 100], sample_size=32):
+    def follow_wp_and_take_measurements(self, start_wp=[1, 1, 0.1], sample_size=32):
 
         self.start_RfEar()
         self.__oRf.set_samplesize(sample_size)
@@ -375,7 +322,7 @@ class GantryControl(object):
         start_time = t.time()
 
         self.set_target_wp(start_wp)
-        self.start_moving_gantry_to_target()
+        self.move_to_target()
         print('Moving to start position = ' + str(start_wp))
         while not self.confirm_arrived_at_target_wp():
             t.sleep(0.2)
@@ -390,7 +337,7 @@ class GantryControl(object):
         for wp in wp_list:
             # go to wp
             self.set_target_wp(wp)
-            self.start_moving_gantry_to_target()
+            self.move_to_target()
             not_arrived_at_wp = True
             print('Moving to wp = ' + str(wp))
 
@@ -398,7 +345,7 @@ class GantryControl(object):
             while not_arrived_at_wp:
                 meas_counter += 1
                 time_elapsed = t.time() - start_time
-                pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos_xyz_mmrad()
+                pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos()
                 freq_den_max, pxx_den_max = self.__oRf.get_rss_peaks()
 
                 data_row = np.append([meas_counter, time_elapsed, pos_x_mm, pos_y_mm, pos_z_mm], pxx_den_max)
@@ -418,7 +365,7 @@ class GantryControl(object):
             measfile.write('avg. meas frequency = ' + str(meas_freq) + ' Hz\n')
             measfile.write('start_point =' + str(start_wp) + '\n')
             measfile.write('wp_list =' + str(wp_list) + '\n')
-            measfile.write('data format = [meas_counter, time_elapsed, pos_x_mm, pos_y_mm, pos_z_mm], pxx_den_max\n')
+            measfile.write('data format = [meas_counter, time_elapsed, pos_x_m, pos_y_m, pos_z_m], pxx_den_max\n')
             measfile.write('### begin data log\n')
             data_mat = np.asarray(data_list)
             for row in data_mat:
@@ -483,7 +430,7 @@ class GantryControl(object):
             print('wp in list = ' + str(wp))
             # go to wp
             self.set_target_wp(wp)
-            self.start_moving_gantry_to_target()
+            self.move_to_target()
             not_arrived_at_wp = True
             print('Moving to wp = ' + str(wp))
 
@@ -563,7 +510,7 @@ class GantryControl(object):
         :return:
         """
         self.set_target_wp(xyz_pos_mmrad)
-        self.start_moving_gantry_to_target()
+        self.move_to_target()
         while not self.confirm_arrived_at_target_wp():
             print('Moving to position = ' + str(xyz_pos_mmrad))
             t.sleep(0.2)
@@ -581,7 +528,7 @@ class GantryControl(object):
 
         # taking measurements
         while time_elapsed < meas_time:
-            pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos_xyz_mmrad()
+            pos_x_mm, pos_y_mm, pos_z_mm = self.get_gantry_pos()
             freq_den_max, pxx_den_max = self.__oCal.get_rss_peaks_at_freqtx()
             time_elapsed = t.time() - start_time
             meas_counter += 1.0
