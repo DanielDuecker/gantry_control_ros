@@ -6,7 +6,9 @@ import tkFileDialog
 import time
 
 reached = None
-
+x_pos = None
+y_pos = None
+z_pos = None
 
 def save_as_dialog(windowtitle='Save as...', myFormats=[('Text file', '*.txt')]):
     root = Tkinter.Tk()
@@ -111,11 +113,12 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     # print(current_target)
 
     # start
-    global reached
+    global reached,x_pos,y_pos,z_pos
     rospy.Subscriber("/gantry/current_position", gantry, callback)
     reached = False  # not robust solution
     for wp in wp_list[1:-1]:
-
+        while not reached or np.sqrt((wp[1]-x_pos)**2+ (wp[2]-y_pos)**2 + (wp[3]-z_pos)**2)<0.001:
+            pass
         while reached:
             current_target = np.array([wp[1], wp[2], wp[3]])
             print('Moving to position = ' + str(current_target))
@@ -166,8 +169,11 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
 
 
 def callback(data):
-    global reached
+    global reached,x_pos,y_pos,z_pos
     reached = data.reached
+    x_pos = data.pos_gantry.x
+    y_pos = data.pos_gantry.y
+    z_pos = data.pos_gantry.z
 
 
 if __name__ == '__main__':
