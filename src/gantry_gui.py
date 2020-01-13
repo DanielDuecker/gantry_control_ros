@@ -159,7 +159,7 @@ class GantryControlROS(object):
         # velocity in mm/s
         #print(self.__velocity_ms)
         print(self.vel_direct_proxy(self.__velocity_ms[0], self.__velocity_ms[1], self.__velocity_ms[2]))
-        return
+        return True
 
     def print_sth(self, data):
         print(data)
@@ -182,6 +182,7 @@ class GantryControlROS(object):
 
     def start_waypoint_following(self):
         measdata_filename = select_file()
+
 
 
 class GantryGui(Tk.Tk):

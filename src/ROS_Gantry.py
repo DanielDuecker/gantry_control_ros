@@ -15,15 +15,18 @@ oGantry = None
 # gantry_pos = None
 pos_reached = None
 # gantry_pos_des = None
-pos_desired_x_mm = None
-pos_desired_y_mm = None
-pos_desired_z_mm = None
+#pos_desired_x_mm = None
+#pos_desired_y_mm = None
+#pos_desired_z_mm = None
 
 # Program State:
 stop_all = False
 initialize_home = False
-#move_to_rel_pos = False
-#move_to_absolute_position = False
+flag_move_to_rel_pos = False
+rel_pos_des_glob_mm = np.array([0, 0, 0])
+
+flag_move_to_abs_pos = False
+abs_pos_des_glob_mm = np.array([0, 0, 0])
 #move_with_velocity = False
 real_time_pos = False
 
@@ -73,34 +76,40 @@ def service_set_max_velocity(max_vel_ms):
                                 "m/s Z="+str(max_vel_ms.z))
 
 
-def service_move_to_absolute_position(abs_pos_des):
-    global move_to_absolute_position, stop_all
+def service_move_to_absolute_position_m(abs_pos_des_m):
+    global stop_all, flag_move_to_abs_pos, abs_pos_des_glob_mm
     if stop_all:
         print("STOP BUTTON PRESSED IGNORING COMMAND")
         return move_to_abs_posResponse("STOP BUTTON PRESSED IGNORING COMMAND")
     else:
-        move_to_absolute_position = True
-        oGantry.goto_position(np.array([abs_pos_des.x, abs_pos_des.y, abs_pos_des.z]))
-
+        flag_move_to_abs_pos = True
+        oGantry.goto_position(np.array([abs_pos_des_m.x, abs_pos_des_m.y, abs_pos_des_m.z]))
+        abs_pos_des_glob_mm = np.array([abs_pos_des_m.x*1000, abs_pos_des_m.y*1000, abs_pos_des_m.z*1000])
         return move_to_abs_posResponse(
-            "Moving to position X=" + str(abs_pos_des.x) + " Y=" + str(abs_pos_des.y) + " Z=" + str(abs_pos_des.z))
+            "Moving to position X=" + str(abs_pos_des_m.x) + " Y=" + str(abs_pos_des_m.y) + " Z=" + str(abs_pos_des_m.z))
 
 
-def service_move_to_relative_pos(rel_pos_m):
-    # global move_to_rel_pos
-    # move_to_rel_pos = True
-    oGantry.gorel_position(np.array([rel_pos_m.x, rel_pos_m.y, rel_pos_m.z]))  # in meter
-    return move_to_relative_posResponse("Moving to relative Position")
+def service_move_to_relative_pos_m(rel_pos_m):
+    global stop_all, flag_move_to_rel_pos, rel_pos_des_glob_mm
+
+    if stop_all:
+        print("STOP BUTTON PRESSED IGNORING COMMAND")
+        return move_to_relative_posResponse("STOP BUTTON PRESSED IGNORING COMMAND")
+    else:
+        oGantry.gorel_position(np.array([rel_pos_m.x, rel_pos_m.y, rel_pos_m.z]))  # in meter
+        flag_move_to_rel_pos = True
+        rel_pos_des_glob_mm = np.array([rel_pos_m.x*1000, rel_pos_m.y*1000, rel_pos_m.z*1000])
+        return move_to_relative_posResponse("Moving to relative Position")
 
 
 def service_move_with_velocity(des_vel_ms):
-    global move_with_velocity, stop_all
+    global flag_move_with_velocity, stop_all
     if stop_all:
         print("STOP BUTTON PRESSED IGNORING COMMAND")
         return move_with_velResponse("STOP BUTTON PRESSED IGNORING COMMAND")
     else:
         # TODO MAX VELOCITY MISSING
-        move_with_velocity = True
+        flag_move_with_velocity = True
         print("Moving with velocity of X=" + str(des_vel_ms.vx) + " Y=" + str(des_vel_ms.vy) + " Z=" + str(des_vel_ms.vz))
         oGantry.target_velocity(np.array([des_vel_ms.vx, des_vel_ms.vy, des_vel_ms.vz]))
 
@@ -110,7 +119,8 @@ def service_move_with_velocity(des_vel_ms):
 
 
 def motor_control_publisher():
-    global oGantry, pos_desired_x_mm, pos_desired_y_mm, pos_desired_z_mm, stop_all, move_with_velocity, move_to_rel_pos, initialize_home
+    global oGantry, stop_all, flag_move_to_abs_pos, flag_move_to_rel_pos, flag_move_with_velocity, initialize_home
+    global abs_pos_des_glob_mm, rel_pos_des_glob_mm
 
     pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
     reached = False
@@ -123,22 +133,27 @@ def motor_control_publisher():
         gantry_vel_ms = oGantry.get_velocity_ms()
         gantry_pos_mm = gantry_pos_m * 1000
 
-        if not stop_all:
-            # code for control:
-            if pos_desired_x_mm is not None and pos_desired_y_mm is not None and pos_desired_z_mm is not None :
-                oGantry.goto_position(np.array([pos_desired_x_mm/1000, pos_desired_y_mm/1000, pos_desired_z_mm/1000]))
+        #if not stop_all:
+        #    # code for control:
+        #    if pos_desired_x_mm is not None and pos_desired_y_mm is not None and pos_desired_z_mm is not None :
+        #        oGantry.goto_position(np.array([pos_desired_x_mm/1000, pos_desired_y_mm/1000, pos_desired_z_mm/1000]))
+        #        print("goto")
             # else:
             #    print("No x/y control started since x/y_pos_desired is not set yet")
 
         # publish position
 
-        if not pos_desired_x_mm is None:
-            # print("here")
-            if np.linalg.norm(gantry_pos_mm - pos_desired_x_mm) < WHEN_REACHED_DISTANCE:
+        if flag_move_to_abs_pos:
+            print("gantry_pos_mm = " + str(gantry_pos_mm))
+            print("pos_des_mm = " + str(abs_pos_des_glob_mm))
+            print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
+            if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
                 reached = True
+                flag_move_to_abs_pos = False
                 print("reached target position")
             else:
                 reached = False
+
 
         send_point = gantry()
         send_point.header.stamp = rospy.Time.now()
@@ -172,9 +187,9 @@ if __name__ == '__main__':
     # Start all services
     rospy.Service('/gantry/stop_all', stop_gantry, service_stop_all)
     rospy.Service('/gantry/init_home', init_home, service_initialize_home)
-    rospy.Service('/gantry/rel_pos', move_to_relative_pos, service_move_to_relative_pos)
+    rospy.Service('/gantry/rel_pos', move_to_relative_pos, service_move_to_relative_pos_m)
     rospy.Service('/gantry/realtime_mode', real_time_mode, service_start_realtime_mode)
-    rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position)
+    rospy.Service('/gantry/abs_pos', move_to_abs_pos, service_move_to_absolute_position_m)
     rospy.Service('/gantry/velocity_direct', move_with_vel, service_move_with_velocity)
     rospy.Service('/gantry/max_velocity', max_velocity, service_set_max_velocity)
     # TODO create service for max velocity

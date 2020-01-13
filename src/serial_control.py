@@ -1,4 +1,3 @@
-import time
 import serial
 import numpy as np
 
@@ -62,7 +61,7 @@ class GantryCommunication(object):
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS
             )
-        except serial.serialutil.SerialException as err:
+        except serial.SerialException as err:
             self.__isdummy = True
             print('~~~~~~~~ Serial port ' + str(self.__name) + ' is not properly connected: it has been set as a dummy DOF')
             print('~~~~~~~~ (Error message: ' + str(err) + ')')
