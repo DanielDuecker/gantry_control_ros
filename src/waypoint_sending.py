@@ -168,7 +168,6 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
 def callback(data):
     global reached
     reached = data.reached
-    return
 
 
 if __name__ == '__main__':
