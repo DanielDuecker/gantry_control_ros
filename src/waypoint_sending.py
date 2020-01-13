@@ -6,9 +6,7 @@ import tkFileDialog
 import time
 
 reached = None
-x_pos = None
-y_pos = None
-z_pos = None
+gantry_pos = None
 
 
 def save_as_dialog(windowtitle='Save as...', myFormats=[('Text file', '*.txt')]):
@@ -106,7 +104,9 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     print('Number of way points: ' + str(num_wp))
     start_time = time.time()
     start_position = np.array([wp_list[1], wp_list[2], wp_list[3]])
-    pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
+
+    rate = rospy.Rate(30)
+    pub = rospy.Publisher('/gantry/position_des', gantry, queue_size=10)
     move_to_position_ros(pub, start_position)
     # wait 5 seconds
     # time.sleep(5)
@@ -114,12 +114,14 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     # print(current_target)
 
     # start
-    global reached, x_pos, y_pos, z_pos
+    global reached, gantry_pos
     rospy.Subscriber("/gantry/current_position", gantry, callback)
     reached = False  # not robust solution
-    for wp in wp_list[1:-1]:
-        current_target = np.array([wp[1], wp[2], wp[3]])
-        while not reached or np.sqrt((wp[1] - x_pos) ** 2 + (wp[2] - y_pos) ** 2 + (wp[3] - z_pos) ** 2) > 0.002:
+    for wp in wp_list:
+        current_target_m = np.array([wp[1]/1000, wp[2]/1000, wp[3]/1000])
+        print("next wp = "+ str(current_target_m))
+
+        while not reached or np.linalg.norm(current_target_m - gantry_pos) > 0.002:
             #pass
         # while reached:
         #     current_target = np.array([wp[1], wp[2], wp[3]])
@@ -127,11 +129,11 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
         #     move_to_position_ros(pub, current_target)
         #     time.sleep(0.2)
 
-
-            print('Moving to position = ' + str(current_target))
-            move_to_position_ros(pub, current_target)
+            move_to_position_ros(pub, current_target_m)
+            rate.sleep()
         # while not reached:
         #     time.sleep(0.2)
+
         time.sleep(wp[4])
 
         # wait n seconds
@@ -171,12 +173,11 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
 
 
 def callback(data):
-    global reached, x_pos, y_pos, z_pos
+    global reached, gantry_pos
     reached = data.reached
-    x_pos = data.pos_gantry.x
-    y_pos = data.pos_gantry.y
-    z_pos = data.pos_gantry.z
-
+    gantry_pos = np.array([data.pos_gantry.x,
+                           data.pos_gantry.y,
+                           data.pos_gantry.z])
 
 if __name__ == '__main__':
     rospy.init_node('Waypoint Driver', anonymous=True)

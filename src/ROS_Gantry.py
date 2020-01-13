@@ -8,7 +8,7 @@ from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_
 
 from gantry_control_ros.msg import gantry
 
-WHEN_REACHED_DISTANCE = 5  # distance in 3d in mm
+WHEN_REACHED_DISTANCE = 2  # distance in 3d in mm
 
 # GLOBAL VARIABLES
 oGantry = None
@@ -22,6 +22,9 @@ rel_pos_des_glob_mm = np.array([0, 0, 0])
 
 flag_move_to_abs_pos = False
 abs_pos_des_glob_mm = np.array([0, 0, 0])
+
+flag_real_time_mode = False
+
 # move_with_velocity = False
 real_time_pos = False
 
@@ -60,8 +63,9 @@ def service_initialize_home(data):
 
 
 def service_start_realtime_mode(data):
-    global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position
+    global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position, flag_real_time_mode
     stop_all = move_with_velocity = move_to_rel_pos = initialize_home = move_to_absolute_position = False
+    flag_real_time_mode = True
     return real_time_modeResponse("Starting Real Time Mode")
 
 
@@ -141,6 +145,19 @@ def motor_control_publisher():
             else:
                 reached = False
 
+        if flag_real_time_mode:
+            print("realtime mode")
+            print("gantry_pos_mm = " + str(gantry_pos_mm))
+            print("pos_des_mm = " + str(abs_pos_des_glob_mm))
+            oGantry.goto_position(abs_pos_des_glob_mm / 1000)
+            print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
+            if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
+                reached = True
+                print("reached real-time target position")
+            else:
+                reached = False
+
+
         send_point = gantry()
         send_point.header.stamp = rospy.Time.now()
         send_point.pos_gantry.x = gantry_pos_m[0]
@@ -154,12 +171,12 @@ def motor_control_publisher():
         pub.publish(send_point)
         rate.sleep()
 
-def get_desired_pos(data):
-    global pos_desired_x_mm, pos_desired_y_mm, pos_desired_z_mm
-    # data = gantry()
-    pos_desired_x_mm = data.pos_gantry.x*1000
-    pos_desired_y_mm = data.pos_gantry.y*1000
-    pos_desired_z_mm = data.pos_gantry.z*1000
+
+def get_desired_pos(abs_pos_des_m):
+    global abs_pos_des_glob_mm
+    abs_pos_des_glob_mm = np.array([abs_pos_des_m.pos_gantry.x*1000,
+                                    abs_pos_des_m.pos_gantry.y*1000,
+                                    abs_pos_des_m.pos_gantry.z*1000])
     return
 
 

@@ -147,7 +147,7 @@ class GantryCommunication(object):
 
                 except ValueError:
                     print("EXCEPTION: Detected ValueError in received serial stream - reject and and take next")
-                    print("Broken String" + last_string)
+                    print("Broken String" + str(last_string))
                     return False
         return False
 
