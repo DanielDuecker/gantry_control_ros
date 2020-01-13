@@ -144,7 +144,7 @@ class GantryCommunication(object):
                     self.__gantry_pos_m = np.array([float(x_pos_mm)/1000, float(y_pos_mm)/1000, float(z_pos_mm)/1000])
                     self.__gantry_vel_ms = np.array([float(x_vel_mms)/1000, float(y_vel_mms)/1000, float(z_vel_mms)/1000])
                     return True
-                
+
                 except ValueError:
                     print("EXCEPTION: Detected ValueError in received serial stream - reject and and take next")
                     print("Broken String" + last_string)
