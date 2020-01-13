@@ -218,7 +218,7 @@ class GantryGui(Tk.Tk):
 class StartPage(Tk.Frame):
     def __init__(self, parent, controller, gantry_interface):
         Tk.Frame.__init__(self, parent)
-        self.gantry_interface = gantry_interface #GantryControllerObj()
+        self.gantry_interface = gantry_interface # GantryControllerObj()
 
         # Notebook
         # notebook_label = ttk.Label(self, text="Control")

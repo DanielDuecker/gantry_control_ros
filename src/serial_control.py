@@ -7,46 +7,12 @@ class GantryCommunication(object):
         self.__oserial = []
         self.__portname = portname
         self.__name = name
-        self.__isdummy = False
-        # "isdummy = True" is for emulation of non connected drives -> gui can run with less drives attached
         self.__baudrate = baudrate
         self.__isopen = False
-        self.__timewritewait = 0.02  # [s]
-        self.__timereadwait = 0.02  # [s]
-
-        self.__homeknown = False
-
-
-        self.__manualinit = False
         self.__ismoving = False
 
         self.__gantry_pos_m = np.array([0, 0, 0])
         self.__gantry_vel_ms = np.array([0, 0, 0])
-
-    """
-        Gantry parameter on teensy
-        
-        incPERmm_x = 2000000/3100
-        incPERmm_y = 945800/1600
-        incPERmm_z = 1920612/940
-        mmPERsPERrpm_x = 1000/28.2/500   # 1000mm/28.2s @  500rpm
-        mmPERsPERrpm_y = 1000/35.4/1000  # 1000mm/35.4s @ 1000rpm
-        mmPERsPERrpm_z = 940/38.2/3000   #  940mm/38.2s @ 3000rpm
-        
-        incPERmm = np.array([incPERmm_x, incPERmm_y, incPERmm_z])
-        mmPERsPERrpm = np.array([mmPERsPERrpm_x, mmPERsPERrpm_y, mmPERsPERrpm_z])
-        self.__gantry_param = [incPERmm, mmPERsPERrpm]
-    """
-    """
-    def get_gantry_param(self):
-        
-        #incPERmm = np.array([incPERmm_x, incPERmm_y, incPERmm_z])
-        #mmPERsPERrpm = np.array([mmPERsPERrpm_x, mmPERsPERrpm_y, mmPERsPERrpm_z])
-
-        :return: [incPERmm, mmPERsPERrpm]
-        
-        return self.__gantry_param
-    """
 
     def open_port(self):
         """
@@ -63,7 +29,7 @@ class GantryCommunication(object):
             )
         except serial.SerialException as err:
             self.__isdummy = True
-            print('~~~~~~~~ Serial port ' + str(self.__name) + ' is not properly connected: it has been set as a dummy DOF')
+            print('~~~~~~~~ Serial port ' + str(self.__name) + ' is not properly connected')
             print('~~~~~~~~ (Error message: ' + str(err) + ')')
             print('~~~~~~~~ Please Check the Ports.')
         else:
@@ -106,14 +72,14 @@ class GantryCommunication(object):
             'gorel': "f",
             'tagetvelocity': "g"
         }
-        print("write on port: " + motorcommand)
+        # print("write on port: " + motorcommand)
         str_command = command.get(motorcommand) + str_arg1 + str_arg2 + str_arg3
 
         if len(str_command) == 19:
             # print("command: " + str_command + " has length:" + str(len(str_command)))
             str_com_full = str_command+'\r\n'
             self.__oserial.write(str_com_full)
-            print(str_com_full)
+        #    print(str_com_full)
             return True
         else:
             print("motor command is too long")
@@ -195,73 +161,4 @@ class GantryCommunication(object):
 
     def get_velocity_ms(self):
         return self.__gantry_vel_ms
-
-
-"""
-    def enter_manual_init_data(self):
-        print('Do you want to enter extreme position manually? (yes/no)')
-        input = raw_input("")
-        if input == 'yes':
-            print('Enter extreme position in [inc]-units:')
-            input = raw_input("")
-            self.__posincmax = int(input)
-            self.__homeknown = True
-            self.__extremeknown = True
-            self.set_manual_init(True)
-        return True
-
-    def start_manual_mode(self, safetycheck=True):
-        print ('Enter your commands below.')
-        print ('Type "AUTO_MODE" for switching to AUTO_MODE')
-        print ('Type "status" for a status report')
-        print ('Type "exit" to leave manual mode')
-        print ('Type "exitall" to close the application')
-        running = True
-
-        while running:
-            # get keyboard input
-            input = raw_input(">> ")
-            # Python 3 users
-            # input = input(">> ")
-
-            if input == 'AUTO_MODE':
-                if safetycheck:
-                    print('\n  ###  SAFETY_CHECK for ' + self.__name + ' ###  ')
-                    print('Is everything ready to start? (yes/no)')
-                    safety_input = raw_input(">> ")
-                    if safety_input == 'yes':
-                        return True
-                    else:
-                        print ('Safetycheck: FAILED!')
-                        print ('Switching to "MANUAL_MODE"\n')
-                        print ('Enter your commands below.')
-                        print ('Type "AUTO_MODE" for switching to AUTO_MODE')
-                        print ('Type "status" for a status report')
-                        print ('Type "exit" to leave manual mode')
-                        print ('Type "exitall" to close the application')
-
-            elif input == 'exit':
-                break
-
-            elif input == 'exitall':
-                self.__oserial.close()
-                exit()
-
-            elif input == 'status':
-                self.get_status()
-
-            else:
-                # send the character to the device
-                # (note that I happend a \r\n carriage return and line feed to the characters - this is requested by my device)
-                self.__oserial.write(input + '\r\n')
-                out = ''
-                # let's wait 0.1 second before reading output (let's give device time to answer)
-                time.sleep(0.1)
-                while self.__oserial.inWaiting() > 0:
-                    out += self.__oserial.read(1)
-
-                if out != '':
-                    print "<<" + out
-
-"""
 

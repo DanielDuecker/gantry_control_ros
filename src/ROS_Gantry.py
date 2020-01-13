@@ -121,7 +121,6 @@ def service_move_with_velocity(des_vel_ms):
 def motor_control_publisher():
     global oGantry, stop_all, flag_move_to_abs_pos, flag_move_to_rel_pos, flag_move_with_velocity, initialize_home
     global abs_pos_des_glob_mm, rel_pos_des_glob_mm
-    global time_running_since_min
 
     pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
     reached = False
@@ -135,9 +134,6 @@ def motor_control_publisher():
         gantry_pos_mm = gantry_pos_m * 1000
 
         if flag_move_to_abs_pos:
-            print("gantry_pos_mm = " + str(gantry_pos_mm))
-            print("pos_des_mm = " + str(abs_pos_des_glob_mm))
-            print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
             if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
                 reached = True
                 flag_move_to_abs_pos = False
@@ -146,17 +142,13 @@ def motor_control_publisher():
                 reached = False
 
         if flag_real_time_mode:
-            print("realtime mode")
-            print("gantry_pos_mm = " + str(gantry_pos_mm))
-            print("pos_des_mm = " + str(abs_pos_des_glob_mm))
             oGantry.goto_position(abs_pos_des_glob_mm / 1000)
-            print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
+            # print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
             if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
                 reached = True
-                print("reached real-time target position")
+                # print("reached real-time target position")
             else:
                 reached = False
-
 
         send_point = gantry()
         send_point.header.stamp = rospy.Time.now()
@@ -177,7 +169,7 @@ def get_desired_pos(abs_pos_des_m):
     abs_pos_des_glob_mm = np.array([abs_pos_des_m.pos_gantry.x*1000,
                                     abs_pos_des_m.pos_gantry.y*1000,
                                     abs_pos_des_m.pos_gantry.z*1000])
-    return
+    return True
 
 
 if __name__ == '__main__':

@@ -41,19 +41,15 @@ def move_to_position_ros(pub, current_target):
 
 
 def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_size=32):
-    # self.start_RfEar()
-    # self.__oRf.set_samplesize(sample_size)
-    # sample_size = self.__oRf.get_samplesize()
-
     wplist_filename = select_file()
     print(wplist_filename)
-    wp_append_list = []
+    wp_append_list=[]
 
     with open(wplist_filename, 'r') as wpfile:
         load_description = True
         load_grid_settings = False
         load_wplist = False
-        wp_append_list = []
+
         for i, line in enumerate(wpfile):
 
             if line == '### begin grid settings\n':
@@ -86,18 +82,11 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
                     except ZeroDivisionError:
                         shapei = 1
                     data_shape.append(shapei)
-
-                # old: data_shape = [xn[0] / grid_dxdyda[0] + 1, xn[1] / grid_dxdyda[1] + 1, xn[2] / grid_dxdyda[2] + 1]
-
             if load_wplist and not load_grid_settings:
                 # print('read wplist')
                 wp_append_list.append(map(float, line[:-2].split(' ')))
-
-        wp_data_mat = np.asarray(wp_append_list)
-        # print(str(wp_data_mat))
-
         wpfile.close()
-    # print(str(np.asarray(wp_append_list)))
+
 
     wp_list = np.asarray(wp_append_list)  # array: number x y z time
     num_wp = len(wp_list)
@@ -108,10 +97,6 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     rate = rospy.Rate(30)
     pub = rospy.Publisher('/gantry/position_des', gantry, queue_size=10)
     move_to_position_ros(pub, start_position)
-    # wait 5 seconds
-    # time.sleep(5)
-    # start_moving_gantry_to_target(current_target)
-    # print(current_target)
 
     # start
     global reached, gantry_pos
