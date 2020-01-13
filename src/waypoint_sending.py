@@ -10,6 +10,7 @@ x_pos = None
 y_pos = None
 z_pos = None
 
+
 def save_as_dialog(windowtitle='Save as...', myFormats=[('Text file', '*.txt')]):
     root = Tkinter.Tk()
     root.withdraw()  # get rid of the tk-app window in the background
@@ -113,23 +114,24 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     # print(current_target)
 
     # start
-    global reached,x_pos,y_pos,z_pos
+    global reached, x_pos, y_pos, z_pos
     rospy.Subscriber("/gantry/current_position", gantry, callback)
     reached = False  # not robust solution
     for wp in wp_list[1:-1]:
-        while not reached or np.sqrt((wp[1]-x_pos)**2+ (wp[2]-y_pos)**2 + (wp[3]-z_pos)**2)<0.001:
-            pass
-        while reached:
-            current_target = np.array([wp[1], wp[2], wp[3]])
+        current_target = np.array([wp[1], wp[2], wp[3]])
+        while not reached or np.sqrt((wp[1] - x_pos) ** 2 + (wp[2] - y_pos) ** 2 + (wp[3] - z_pos) ** 2) > 0.002:
+            #pass
+        # while reached:
+        #     current_target = np.array([wp[1], wp[2], wp[3]])
+        #     print('Moving to position = ' + str(current_target))
+        #     move_to_position_ros(pub, current_target)
+        #     time.sleep(0.2)
+
+
             print('Moving to position = ' + str(current_target))
             move_to_position_ros(pub, current_target)
-            time.sleep(0.2)
-
-        current_target = np.array([wp[1], wp[2], wp[3]])
-        print('Moving to position = ' + str(current_target))
-        move_to_position_ros(pub, current_target)
-        while not reached:
-            time.sleep(0.2)
+        # while not reached:
+        #     time.sleep(0.2)
         time.sleep(wp[4])
 
         # wait n seconds
@@ -169,7 +171,7 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
 
 
 def callback(data):
-    global reached,x_pos,y_pos,z_pos
+    global reached, x_pos, y_pos, z_pos
     reached = data.reached
     x_pos = data.pos_gantry.x
     y_pos = data.pos_gantry.y
