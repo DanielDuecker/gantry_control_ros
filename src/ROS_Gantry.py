@@ -12,12 +12,7 @@ WHEN_REACHED_DISTANCE = 5  # distance in 3d in mm
 
 # GLOBAL VARIABLES
 oGantry = None
-# gantry_pos = None
 pos_reached = None
-# gantry_pos_des = None
-#pos_desired_x_mm = None
-#pos_desired_y_mm = None
-#pos_desired_z_mm = None
 
 # Program State:
 stop_all = False
@@ -27,14 +22,15 @@ rel_pos_des_glob_mm = np.array([0, 0, 0])
 
 flag_move_to_abs_pos = False
 abs_pos_des_glob_mm = np.array([0, 0, 0])
-#move_with_velocity = False
+# move_with_velocity = False
 real_time_pos = False
 
 
 def init_system():
     global oGantry
+    print("Running stable since: " + time.ctime())
+
     gantry_status = oGantry.open_port()
-    # oGantry.set_home_pos_known(True)
     time.sleep(0.5)
     return gantry_status
 
@@ -121,6 +117,7 @@ def service_move_with_velocity(des_vel_ms):
 def motor_control_publisher():
     global oGantry, stop_all, flag_move_to_abs_pos, flag_move_to_rel_pos, flag_move_with_velocity, initialize_home
     global abs_pos_des_glob_mm, rel_pos_des_glob_mm
+    global time_running_since_min
 
     pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
     reached = False
@@ -133,16 +130,6 @@ def motor_control_publisher():
         gantry_vel_ms = oGantry.get_velocity_ms()
         gantry_pos_mm = gantry_pos_m * 1000
 
-        #if not stop_all:
-        #    # code for control:
-        #    if pos_desired_x_mm is not None and pos_desired_y_mm is not None and pos_desired_z_mm is not None :
-        #        oGantry.goto_position(np.array([pos_desired_x_mm/1000, pos_desired_y_mm/1000, pos_desired_z_mm/1000]))
-        #        print("goto")
-            # else:
-            #    print("No x/y control started since x/y_pos_desired is not set yet")
-
-        # publish position
-
         if flag_move_to_abs_pos:
             print("gantry_pos_mm = " + str(gantry_pos_mm))
             print("pos_des_mm = " + str(abs_pos_des_glob_mm))
@@ -153,7 +140,6 @@ def motor_control_publisher():
                 print("reached target position")
             else:
                 reached = False
-
 
         send_point = gantry()
         send_point.header.stamp = rospy.Time.now()
@@ -168,7 +154,6 @@ def motor_control_publisher():
         pub.publish(send_point)
         rate.sleep()
 
-
 def get_desired_pos(data):
     global pos_desired_x_mm, pos_desired_y_mm, pos_desired_z_mm
     # data = gantry()
@@ -179,8 +164,6 @@ def get_desired_pos(data):
 
 
 if __name__ == '__main__':
-    # global x_axis_control, y_axis_control, pos_x_mm, pos_y_mm
-
     print("ROS_Gantry started")
 
     rospy.init_node('Gantry', anonymous=True)
