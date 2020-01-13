@@ -118,56 +118,15 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     rospy.Subscriber("/gantry/current_position", gantry, callback)
     reached = False  # not robust solution
     for wp in wp_list:
-        current_target_m = np.array([wp[1]/1000, wp[2]/1000, wp[3]/1000])
-        print("next wp = "+ str(current_target_m))
+        current_target_m = np.array([round(wp[1]/1000,3), round(wp[2]/1000,3), round(wp[3]/1000,3)])
+        print("next wp = " + str(current_target_m))
 
         while not reached or np.linalg.norm(current_target_m - gantry_pos) > 0.002:
-            #pass
-        # while reached:
-        #     current_target = np.array([wp[1], wp[2], wp[3]])
-        #     print('Moving to position = ' + str(current_target))
-        #     move_to_position_ros(pub, current_target)
-        #     time.sleep(0.2)
 
             move_to_position_ros(pub, current_target_m)
             rate.sleep()
-        # while not reached:
-        #     time.sleep(0.2)
 
         time.sleep(wp[4])
-
-        # wait n seconds
-
-        # take measurement
-
-        # time_elapsed = time.time() - start_time
-        # data_row = np.append([meas_counter, time_elapsed, pos_x_mm, pos_y_mm], pxx_den_max)
-        # data_list.append(data_row)
-        # wait for n seconds
-        # start from above
-
-        # meas_freq = meas_counter / time_elapsed
-        # print('Logging with avg. ' + str(meas_freq) + ' Hz')
-
-    # with open(measdata_filename, 'w') as measfile:
-    #     measfile.write('Measurement file for trajectory following\n')
-    #     measfile.write('Measurement was taken on ' + t.ctime() + '\n')
-    #     measfile.write('### begin grid settings\n')
-    #     measfile.write('sample size = ' + str(sample_size) + ' [*1024]\n')
-    #     measfile.write('avg. meas frequency = ' + str(meas_freq) + ' Hz\n')
-    #     measfile.write('start_point =' + str(start_wp) + '\n')
-    #     measfile.write('wp_list =' + str(wp_list) + '\n')
-    #     measfile.write('data format = [meas_counter, time_elapsed, pos_x_mm, pos_y_mm], pxx_den_max\n')
-    #     measfile.write('### begin data log\n')
-    #     data_mat = np.asarray(data_list)
-    #     for row in data_mat:
-    #         row_string = ''
-    #         for i in range(len(row)):
-    #             row_string += str(row[i]) + ','
-    #         row_string += '\n'
-    #         measfile.write(row_string)
-    #
-    #     measfile.close()
 
     return True
 
@@ -180,5 +139,5 @@ def callback(data):
                            data.pos_gantry.z])
 
 if __name__ == '__main__':
-    rospy.init_node('Waypoint Driver', anonymous=True)
+    rospy.init_node('Waypoint_Driver', anonymous=True)
     follow_wp_and_take_measurements()
