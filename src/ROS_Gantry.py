@@ -130,6 +130,7 @@ def motor_control_publisher():
     while not rospy.is_shutdown():
         oGantry.update_gantry_data()
         gantry_pos_m = oGantry.get_position_m()
+        # print(gantry_pos_m)
         gantry_vel_ms = oGantry.get_velocity_ms()
         gantry_pos_mm = gantry_pos_m * 1000
 

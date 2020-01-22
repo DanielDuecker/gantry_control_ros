@@ -414,11 +414,12 @@ class StartPage(Tk.Frame):
         button_stop.grid(row=5, column=0, sticky='W')
 
     def get_position(self):
-        pos_x_mm, pos_y_mm, pos_z_mm = self.gantry_interface.get_position_gantry_xyz()  # TODO ROS EINFUEGEN
+        pos_x_m, pos_y_m, pos_z_m = self.gantry_interface.get_position_gantry_xyz()  # TODO ROS EINFUEGEN
+
         self.__label_pos_xyz.configure(
-            text='X = ' + str(int(pos_x_mm)) + ' mm \n'+
-                 'Y = ' + str(int(pos_y_mm)) + ' mm \n'+
-                 'Z = ' + str(int(pos_z_mm)) +  ' mm')
+            text='X = ' + str(int(pos_x_m*1000)) + ' mm \n' +
+                 'Y = ' + str(int(pos_y_m*1000)) + ' mm \n' +
+                 'Z = ' + str(int(pos_z_m*1000)) + ' mm')
         self.__label_pos_xyz.after(200, self.get_position)  # update position label every 200ms
         return True
 

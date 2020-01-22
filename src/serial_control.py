@@ -92,9 +92,10 @@ class GantryCommunication(object):
         while self.__oserial.inWaiting() > 0:
             new_data = self.__oserial.read(1)
             out += new_data  # pure number string
-
+            #print(out)
         out_split = out.rstrip().split('\r\n')
         last_string = out_split[-1].rstrip().split(',')
+
         if len(last_string) == 6:
             if last_string[-1] == '':
                 return False
