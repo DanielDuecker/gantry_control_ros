@@ -65,34 +65,34 @@ def stop_everything():
 
 def service_stop_all(data):
     global stop_all
-    print("Gantry Stopped = ", data.data)
+    print("[ROS_Gantry] Gantry Stopped = ", data.data)
     stop_all = data.data
 
     if stop_all:
         stop_everything()
-        return stop_gantryResponse("Gantry Stopped")
+        return stop_gantryResponse("[ROS_Gantry] Gantry Stopped")
     else:
-        return stop_gantryResponse("Gantry Moves")
+        return stop_gantryResponse("[ROS_Gantry] Gantry Moves")
 
 
 def service_initialize_home(data):
     global initialize_home
     initialize_home = True
-    print("INIT Home")
+    print("[ROS_Gantry] Init Home Position")
     oGantry.start_home_seq()
-    return init_homeResponse("process homing sequence...")
+    return init_homeResponse("[ROS_Gantry] process homing sequence...")
 
 
 def service_start_realtime_mode(data):
     global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position, flag_real_time_mode
     stop_all = move_with_velocity = move_to_rel_pos = initialize_home = move_to_absolute_position = False
     flag_real_time_mode = True
-    return real_time_modeResponse("Starting Real Time Mode")
+    return real_time_modeResponse("[ROS_Gantry] Starting Real Time Mode")
 
 
 def service_set_max_velocity(max_vel_ms):
     oGantry.set_max_speed_ms(np.array([max_vel_ms.x,max_vel_ms.y,max_vel_ms.z]))
-    return max_velocityResponse("Max Velocity Set X="+str(max_vel_ms.x) +
+    return max_velocityResponse("[ROS_Gantry] Max Velocity Set X="+str(max_vel_ms.x) +
                                 "m/s Y="+str(max_vel_ms.y) +
                                 "m/s Z="+str(max_vel_ms.z))
 
@@ -100,43 +100,46 @@ def service_set_max_velocity(max_vel_ms):
 def service_move_to_absolute_position_m(abs_pos_des_m):
     global stop_all, flag_move_to_abs_pos, abs_pos_des_glob_mm
     if stop_all:
-        print("STOP BUTTON PRESSED IGNORING COMMAND")
-        return move_to_abs_posResponse("STOP BUTTON PRESSED IGNORING COMMAND")
+        print("[ROS_GANTRY] STOP BUTTON PRESSED IGNORING COMMAND")
+        return move_to_abs_posResponse("[ROS_GANTRY] STOP BUTTON PRESSED IGNORING COMMAND")
     else:
         flag_move_to_abs_pos = True
         oGantry.goto_position(np.array([abs_pos_des_m.x, abs_pos_des_m.y, abs_pos_des_m.z]))
         abs_pos_des_glob_mm = np.array([abs_pos_des_m.x*1000, abs_pos_des_m.y*1000, abs_pos_des_m.z*1000])
         return move_to_abs_posResponse(
-            "Moving to position X=" + str(abs_pos_des_m.x) + " Y=" + str(abs_pos_des_m.y) + " Z=" + str(abs_pos_des_m.z))
+            "[ROS_Gantry] Moving to position X=" + str(abs_pos_des_m.x) +
+            " Y=" + str(abs_pos_des_m.y) +
+            " Z=" + str(abs_pos_des_m.z))
 
 
 def service_move_to_relative_pos_m(rel_pos_m):
     global stop_all, flag_move_to_rel_pos, rel_pos_des_glob_mm
 
     if stop_all:
-        print("STOP BUTTON PRESSED IGNORING COMMAND")
-        return move_to_relative_posResponse("STOP BUTTON PRESSED IGNORING COMMAND")
+        print("[ROS_Gantry] STOP BUTTON PRESSED IGNORING COMMAND")
+        return move_to_relative_posResponse("[ROS_GANTRY] STOP BUTTON PRESSED IGNORING COMMAND")
     else:
         oGantry.gorel_position(np.array([rel_pos_m.x, rel_pos_m.y, rel_pos_m.z]))  # in meter
         flag_move_to_rel_pos = True
         rel_pos_des_glob_mm = np.array([rel_pos_m.x*1000, rel_pos_m.y*1000, rel_pos_m.z*1000])
-        return move_to_relative_posResponse("Moving to relative Position")
+        return move_to_relative_posResponse("[ROS_GANTRY] Moving to relative Position")
 
 
 def service_move_with_velocity(des_vel_ms):
     global flag_move_with_velocity, stop_all
     if stop_all:
-        print("STOP BUTTON PRESSED IGNORING COMMAND")
+        print("[ROS_GANTRY] STOP BUTTON PRESSED IGNORING COMMAND")
         return move_with_velResponse("STOP BUTTON PRESSED IGNORING COMMAND")
     else:
         # TODO MAX VELOCITY MISSING
         flag_move_with_velocity = True
-        print("Moving with velocity of X=" + str(des_vel_ms.vx) + " Y=" + str(des_vel_ms.vy) + " Z=" + str(des_vel_ms.vz))
+        print("[ROS_Gantry] Moving with velocity of X=" + str(des_vel_ms.vx) +
+              " Y=" + str(des_vel_ms.vy) + " Z=" + str(des_vel_ms.vz))
         oGantry.target_velocity(np.array([des_vel_ms.vx, des_vel_ms.vy, des_vel_ms.vz]))
 
-        return move_with_velResponse("Moving with velocity of X=" + str(round(des_vel_ms.vx,3)) + "m/s Y=" +
-                                                                    str(round(des_vel_ms.vy,3)) + "m/s Z=" +
-                                                                    str(round(des_vel_ms.vz,3)) + "m/s")
+        return move_with_velResponse("[ROS_Gantry] Moving with velocity of X=" + str(round(des_vel_ms.vx, 3)) +
+                                     "m/s Y=" + str(round(des_vel_ms.vy,3)) +
+                                     "m/s Z=" + str(round(des_vel_ms.vz,3)) + "m/s")
 
 
 def motor_control_publisher():
@@ -156,7 +159,7 @@ def motor_control_publisher():
         if oGantry.update_gantry_data():
             time_out_timer = time.time()  # reset time out
         if (time.time() - time_out_timer) > time_out_sec:
-            warnings.warn("[ROS_GANTRY] Serial link to gantry time out! Shutting Down")
+            warnings.warn("[ROS_Gantry] Serial link to gantry time out! Shutting Down")
             stop_everything()
             break
 
@@ -169,7 +172,7 @@ def motor_control_publisher():
             if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
                 reached = True
                 flag_move_to_abs_pos = False
-                print("reached target position")
+                print("[ROS_Gantry] reached target position")
             else:
                 reached = False
 
