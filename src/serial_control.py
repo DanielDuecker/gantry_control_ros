@@ -35,7 +35,7 @@ class GantryCommunication(object):
         else:
             # open serial port
             self.__isopen = self.__oserial.isOpen()
-            print('Serial port ' + self.__portname + ' is open!')
+            print('[Serial Control] Serial port ' + self.__portname + ' is open!')
         return True
 
     def close_port(self):

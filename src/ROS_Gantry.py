@@ -2,6 +2,7 @@ import serial_control as sc
 import time
 import rospy
 import numpy as np
+import warnings
 from gantry_control_ros.srv import init_home, move_to_abs_pos, move_to_relative_pos, move_with_vel, stop_gantry, \
     init_homeResponse, move_to_abs_posResponse, move_to_relative_posResponse, move_with_velResponse, \
     stop_gantryResponse, real_time_mode, real_time_modeResponse, max_velocity, max_velocityResponse
@@ -31,11 +32,31 @@ real_time_pos = False
 
 def init_system():
     global oGantry
-    print("Running stable since: " + time.ctime())
 
+    print("[ROS_Gantry] booting...")
     gantry_status = oGantry.open_port()
+
     time.sleep(0.5)
-    return gantry_status
+    time_boot = time.time()
+    init_boot_time = 2
+    time_out_sec = 0.2
+    time_out_timer = time.time()
+    gantry_msg_counter = 0
+    while time.time()-time_boot < init_boot_time:
+        if oGantry.update_gantry_data():
+            time_out_timer = time.time()  # reset time out
+            gantry_msg_counter += 1
+        if (time.time() - time_out_timer) > time_out_sec:
+            warnings.warn("[ROS_GANTRY] Serial link to gantry time out! Shutting Down")
+            stop_everything()
+            return False
+        time.sleep(0.01)  # avoid looping too fast
+
+    print("[ROS_Gantry] Booting completed: receiving gantry data @" +
+          str(round(gantry_msg_counter/(time.time()-time_boot), 1))+"Hz")
+
+    print("[ROS_Gantry] Running stable since: " + time.ctime())
+    return True
 
 
 def stop_everything():
@@ -124,11 +145,21 @@ def motor_control_publisher():
 
     pub = rospy.Publisher('/gantry/current_position', gantry, queue_size=10)
     reached = False
-    rate = rospy.Rate(30)
-    print("motor_control_publisher running...")
+    rospy_rate = 30
+    rate = rospy.Rate(rospy_rate)
+    # print("[ROS_Gantry] ROS publisher running at " + str(rospy_rate) + "Hz")
 
+    time_out_sec = 0.2
+    time_out_timer = time.time()
     while not rospy.is_shutdown():
-        oGantry.update_gantry_data()
+
+        if oGantry.update_gantry_data():
+            time_out_timer = time.time()  # reset time out
+        if (time.time() - time_out_timer) > time_out_sec:
+            warnings.warn("[ROS_GANTRY] Serial link to gantry time out! Shutting Down")
+            stop_everything()
+            break
+
         gantry_pos_m = oGantry.get_position_m()
         # print(gantry_pos_m)
         gantry_vel_ms = oGantry.get_velocity_ms()
@@ -164,6 +195,9 @@ def motor_control_publisher():
         pub.publish(send_point)
         rate.sleep()
 
+    print("[ROS_Gantry] rospy shutdow...")
+    return True
+
 
 def get_desired_pos(abs_pos_des_m):
     global abs_pos_des_glob_mm
@@ -174,7 +208,7 @@ def get_desired_pos(abs_pos_des_m):
 
 
 if __name__ == '__main__':
-    print("ROS_Gantry started")
+    print("[ROS_Gantry] start")
 
     rospy.init_node('Gantry', anonymous=True)
     # Start all services
@@ -191,11 +225,10 @@ if __name__ == '__main__':
     # Start Gantry
     oGantry = sc.GantryCommunication('/dev/ttyS0', 'teensy_40', 57600)
 
-    init_system()  # opens serial port to teensy
-
-    # Start all publishers
-    try:
-        motor_control_publisher()
-    except rospy.ROSInterruptException:
-        pass
-    stop_everything()
+    if init_system():  # opens serial port to teensy
+        # Start all publishers
+        try:
+            motor_control_publisher()
+        except rospy.ROSInterruptException:
+            pass
+        stop_everything()
