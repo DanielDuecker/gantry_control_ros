@@ -84,6 +84,7 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
                     data_shape.append(shapei)
             if load_wplist and not load_grid_settings:
                 # print('read wplist')
+                print(line[:-2])
                 wp_append_list.append(map(float, line[:-2].split(' ')))
         wpfile.close()
 
@@ -94,7 +95,7 @@ def follow_wp_and_take_measurements():  # (self, start_wp=[1000, 1000], sample_s
     start_time = time.time()
     start_position = np.array([wp_list[1], wp_list[2], wp_list[3]])
 
-    rate = rospy.Rate(30)
+    rate = rospy.Rate(10)
     pub = rospy.Publisher('/gantry/position_des', gantry, queue_size=10)
     move_to_position_ros(pub, start_position)
 

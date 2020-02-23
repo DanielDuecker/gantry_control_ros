@@ -98,8 +98,11 @@ class GantryControlROS(object):
         self.vel_direct_proxy = rospy.ServiceProxy('/gantry/velocity_direct', move_with_vel)
         self.max_velocity_proxy = rospy.ServiceProxy('/gantry/max_velocity', max_velocity)
 
+
         self.sub_position = rospy.Subscriber("/gantry/current_position", gantry, self.get_position_gantry_sub)
 
+        self.max_velocity_proxy(float(100) / 1000, float(125) / 1000,
+                            float(35) / 1000)#set std speed(such that the gantry is not angry)
     def get_position_gantry_sub(self, data):
         self.__position_m = np.array([data.pos_gantry.x,
                                     data.pos_gantry.y,

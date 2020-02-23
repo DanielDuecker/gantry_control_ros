@@ -94,6 +94,7 @@ class GantryCommunication(object):
             out += new_data  # pure number string
             #print(out)
         out_split = out.rstrip().split('\r\n')
+        # print(out_split)
         last_string = out_split[-1].rstrip().split(',')
 
         if len(last_string) == 6:
@@ -110,6 +111,8 @@ class GantryCommunication(object):
 
                     self.__gantry_pos_m = np.array([float(x_pos_mm)/1000, float(y_pos_mm)/1000, float(z_pos_mm)/1000])
                     self.__gantry_vel_ms = np.array([float(x_vel_mms)/1000, float(y_vel_mms)/1000, float(z_vel_mms)/1000])
+                    #print("POS",self.__gantry_pos_m )
+                    #print("VEL",self.__gantry_vel_ms)
                     return True
 
                 except ValueError:

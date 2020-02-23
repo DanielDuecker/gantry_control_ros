@@ -83,7 +83,7 @@ def service_initialize_home(data):
     return init_homeResponse("[ROS_Gantry] process homing sequence...")
 
 
-def service_start_realtime_mode(data):
+def service_start_realtime_mode(data):#TODO ADD STOP WHEREN STARTED
     global stop_all, move_with_velocity, move_to_rel_pos, initialize_home, move_to_absolute_position, flag_real_time_mode
     stop_all = move_with_velocity = move_to_rel_pos = initialize_home = move_to_absolute_position = False
     flag_real_time_mode = True
@@ -152,7 +152,7 @@ def motor_control_publisher():
     rate = rospy.Rate(rospy_rate)
     # print("[ROS_Gantry] ROS publisher running at " + str(rospy_rate) + "Hz")
 
-    time_out_sec = 0.2
+    time_out_sec = 0.5
     time_out_timer = time.time()
     while not rospy.is_shutdown():
 
@@ -176,13 +176,16 @@ def motor_control_publisher():
             else:
                 reached = False
 
-        if flag_real_time_mode:
-            oGantry.goto_position(abs_pos_des_glob_mm / 1000)
+        if flag_real_time_mode:#TODO ABFANGEN VON STOP BUTTON
+            if np.linalg.norm(gantry_vel_ms)< 0.001:
+                oGantry.goto_position(abs_pos_des_glob_mm / 1000)
             # print("dist " + str(np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm)))
             if np.linalg.norm(gantry_pos_mm - abs_pos_des_glob_mm) < WHEN_REACHED_DISTANCE:
                 reached = True
+                #oGantry.goto_position(abs_pos_des_glob_mm / 1000)
                 # print("reached real-time target position")
             else:
+
                 reached = False
 
         send_point = gantry()
@@ -227,7 +230,6 @@ if __name__ == '__main__':
     rospy.Subscriber("/gantry/position_des", gantry, get_desired_pos)
     # Start Gantry
     oGantry = sc.GantryCommunication('/dev/ttyS0', 'teensy_40', 57600)
-
     if init_system():  # opens serial port to teensy
         # Start all publishers
         try:
